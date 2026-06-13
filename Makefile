@@ -1,0 +1,51 @@
+# Makefile for Scrinium MCP Server
+
+BINARY_NAME = scrinium
+VERSION = 0.1.0
+
+# Build targets
+build:
+	go build -o $(BINARY_NAME) .
+
+test:
+	go test ./... -count=1 -timeout=120s
+
+# Verify: build + test + lint + format check
+verify: build test vet format-check staticcheck govulncheck tidy-check
+
+vet:
+	go vet ./...
+
+format-check:
+	@unformatted=$$(gofmt -l .); \
+	if [ -n "$$unformatted" ]; then \
+		echo "Unformatted files:"; \
+		echo "$$unformatted"; \
+		exit 1; \
+	fi
+
+staticcheck:
+	staticcheck ./...
+
+govulncheck:
+	govulncheck ./...
+
+tidy-check:
+	@cp go.mod go.mod.bak && cp go.sum go.sum.bak 2>/dev/null || true
+	@go mod tidy
+	@if ! diff -q go.mod go.mod.bak > /dev/null 2>&1; then \
+		mv go.mod.bak go.mod; mv go.sum.bak go.sum 2>/dev/null || true; \
+		echo "go.mod is not tidy — run 'go mod tidy'"; \
+		exit 1; \
+	fi
+	@mv go.mod.bak go.mod 2>/dev/null || true; mv go.sum.bak go.sum 2>/dev/null || true
+
+# Install binary to /usr/local/bin
+install: build
+	install -m 755 $(BINARY_NAME) /usr/local/bin/$(BINARY_NAME)
+
+# Clean build artifacts
+clean:
+	rm -f $(BINARY_NAME)
+
+.PHONY: build test verify vet format-check staticcheck govulncheck tidy-check install clean

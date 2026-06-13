@@ -1,0 +1,21 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "scrinium": {
+      "type": "local",
+      "command": [
+        "/usr/local/bin/scrinium",
+        "./scrinium.json"
+      ],
+      "enabled": true
+    },
+    "gograph-localpm": {
+      "type": "local",
+      "command": [
+        "gograph",
+        "mcp"
+      ],
+      "enabled": true
+    }
+  }
+}

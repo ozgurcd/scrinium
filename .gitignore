@@ -1,0 +1,10 @@
+# Build artifacts
+scrinium
+
+# Atomic write temp files
+.scrinium-*.tmp
+
+.gograph/
+.codex/
+AGENTS.md
+llm-wiki
