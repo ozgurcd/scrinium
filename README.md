@@ -39,9 +39,16 @@ graph TD
 
 ## Getting Started
 
-### 1. Build and Install
+### 1. Install
 
-Build the standalone binary or install it to your system paths:
+**Via Homebrew (recommended):**
+
+```bash
+brew tap ozgurcd/tap
+brew install --cask scrinium
+```
+
+**Build from source:**
 
 ```bash
 # Compile to local binary
