@@ -56,4 +56,13 @@ install: build
 clean:
 	rm -f $(BINARY_NAME)
 
-.PHONY: build version test verify vet format-check staticcheck govulncheck tidy-check install clean
+# Release target: verify, bump patch version, commit, tag, and push tags to trigger GoReleaser CI
+release: verify
+	bump2version patch
+	@NEW_VERSION=$$(grep "VERSION =" Makefile | cut -d' ' -f3); \
+	git add Makefile .bumpversion.cfg; \
+	git commit -m "Release v$$NEW_VERSION"; \
+	git tag v$$NEW_VERSION; \
+	git push origin main --tags
+
+.PHONY: build version test verify vet format-check staticcheck govulncheck tidy-check install clean release

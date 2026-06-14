@@ -1,0 +1,33 @@
+version: 2
+project_name: scrinium
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X scrinium/cmd/scrinium.version={{.Version}}
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: 'checksums.txt'
+
+brews:
+  - repository:
+      owner: ozgurcd
+      name: homebrew-tap
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/ozgurcd/scrinium"
+    description: "Governed wiki MCP server for AI coding agents"
+    license: "Apache-2.0"
+    install: |
+      bin.install "scrinium"

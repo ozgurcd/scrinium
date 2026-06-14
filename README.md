@@ -118,3 +118,11 @@ make test
 # Run full verify pipeline (format, vet, staticcheck, govulncheck)
 make verify
 ```
+
+### Releasing
+
+To run the verification pipeline, increment the patch version via `bump2version`, commit the version bump, tag it, push to the remote repository, and automatically publish a GitHub release:
+
+```bash
+make release
+```
