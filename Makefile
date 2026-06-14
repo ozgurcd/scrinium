@@ -2,10 +2,17 @@
 
 BINARY_NAME = scrinium
 VERSION = 0.1.0
+PREFIX ?= /usr/local
+BINDIR ?= $(PREFIX)/bin
+INSTALL ?= install
+LDFLAGS = -X scrinium/cmd/scrinium.version=$(VERSION)
 
 # Build targets
 build:
-	go build -o $(BINARY_NAME) .
+	go build -ldflags "$(LDFLAGS)" -o $(BINARY_NAME) .
+
+version:
+	@echo $(VERSION)
 
 test:
 	go test ./... -count=1 -timeout=120s
@@ -42,10 +49,11 @@ tidy-check:
 
 # Install binary to /usr/local/bin
 install: build
-	install -m 755 $(BINARY_NAME) /usr/local/bin/$(BINARY_NAME)
+	$(INSTALL) -d $(DESTDIR)$(BINDIR)
+	$(INSTALL) -m 755 $(BINARY_NAME) $(DESTDIR)$(BINDIR)/$(BINARY_NAME)
 
 # Clean build artifacts
 clean:
 	rm -f $(BINARY_NAME)
 
-.PHONY: build test verify vet format-check staticcheck govulncheck tidy-check install clean
+.PHONY: build version test verify vet format-check staticcheck govulncheck tidy-check install clean

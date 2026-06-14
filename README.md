@@ -1,67 +1,120 @@
 # Scrinium
 
-Scrinium is a Model Context Protocol (MCP) server designed to manage local `llm-wiki` structures. It provides governed read/write access to wiki files, serving as a structured memory layer to keep agents focused on project rules and reduce hallucinations.
+Scrinium is an Apache 2.0 open-source Model Context Protocol (MCP) server written in Go that manages a local project wiki (`llm-wiki`) for AI coding agents. It serves as a governed, persistent memory layer that keeps agents aligned, reduces hallucinations, and prevents rule-drift.
 
-## Features
+> [!NOTE]
+> **The Agent Memory Paradigm**
+> Scrinium realizes Andrej Karpathy's vision of text-based persistent memory (scratchpads) for AI agents (as described in his [original gist](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)). By utilizing a local directory of structured markdown files, agents can read project rules, query historical context, and record architecture decisions directly within the repository.
 
-- **Policy-Based Access Control (PBAC)**: Implements strict read/write governance to protect foundational rules
-- **Session Enforcement**: Requires agents to start a session, read required wiki context, and finish only after maintenance obligations are complete
-- **Immutable Zones**: Protects critical documentation files from unauthorized modifications
-- **Mutable Zones**: Allows working with drafts and logs in controlled ways
-- **Semantic Error Handling**: Returns human-readable error messages for LLM consumption
+---
 
-## Architecture
+## Key Features
 
-Scrinium acts as an agentic governance gateway that:
-1. Exposes the entire `llm-wiki` directory as MCP URIs for reading
-2. Provides controlled write access through specific tools with governance enforcement
-3. Enforces the LLM Wiki read-before-write and update-after-write cycle
-4. Prevents context drift by protecting project rules from unintended overwrites
+*   **Policy-Based Access Control (PBAC)**: Protects foundational rules and architectural records from direct agent overwrites.
+*   **Enforced Session Loop**: Compels agents to read context (`index.md` and `agent-rules.md`) before making writes, and validates that logs and indexes are updated before the session completes.
+*   **Adoption & Linting Tools**: Provides read-only health checks to scan for contradictions, stale claims, missing indices, and prompt-injection vectors.
+*   **Agent Enforcement CLI**: Automatically creates or refreshes Scrinium-managed instructions inside `AGENTS.md` and `CLAUDE.md`.
+*   **Standard Library Only**: Compiles into a single standalone binary with zero runtime dependencies.
 
-## Configuration
+---
 
-The server is configured via `scrinium.json` which specifies:
-- The wiki root directory path
-- Write governance rules that define protected files and allowed tools
+## How It Works: The Enforced Session Loop
 
-## MCP Capabilities
+Scrinium guides agent workflows using a deterministic state machine enforced through MCP session tools:
 
-### Resources (Read)
-- Exposes all wiki files as MCP URIs (`llm-wiki://file/path.md`)
-
-### Tools (Write/Execute)
-- `read_wiki_page`: Read a specific wiki page
-- `begin_session`: Start a tracked LLM Wiki work session before writes
-- `session_status`: Inspect recorded reads, writes, and pending maintenance requirements
-- `finish_session`: Verify required log, index, and source-registry updates before completion
-- `update_wiki_page`: Modify a wiki page with governance checks
-- `create_draft`: Create a draft in the drafts/ directory
-- `append_log`: Append content to logs without modifying existing content
-- `setup_llm_wiki`: Initialize the standard LLM Wiki structure without overwriting existing pages
-- `lint_llm_wiki`: Run a read-only wiki health check for missing pages, index gaps, provenance gaps, and source-instruction risks
-- `adopt_llm_wiki`: Run a read-only adoption scan for an existing manual or non-Scrinium wiki
-- `register_source`: Register a raw source and create or update its source summary stub
-- `create_page`: Create a page only when it does not already exist
-- `move_page`: Rename a wiki page without overwriting the destination
-- `archive_page`: Move obsolete content under `archive/`; archived content is historical only and must be dropped from active working context
-
-## Documentation
-
-- [Scrinium Init and LLM Wiki Maintenance](docs/scrinium-init-and-maintenance.md): how to initialize a brand new repo, adopt an existing manually maintained `llm-wiki/`, and keep the wiki current through the enforced session loop.
-
-## Build & Run
-
-```bash
-# Build
-make build
-
-# Run with configuration
-./scrinium ./scrinium.json
+```mermaid
+graph TD
+    A[Agent Starts Task] --> B[capabilities]
+    B --> C[begin_session]
+    C --> D[read index.md & agent-rules.md]
+    D --> E[Read relevant workflows/pages]
+    E --> F[Execute project/wiki writes]
+    F --> G[Update index.md & log.md]
+    G --> H[session_status]
+    H --> I[finish_session]
+    I --> J[Task Complete]
 ```
 
-## Development Workflow
+---
 
-1. Read `PROJECT_DESIGN.md` and `AGENTS.md` for project requirements
-2. Ensure compliance with architectural guidelines before making changes
-3. All development must pass `make test` and `make verify`
-4. Changes must be verified through full testing suite before completion
+## Getting Started
+
+### 1. Build and Install
+
+Build the standalone binary or install it to your system paths:
+
+```bash
+# Compile to local binary
+make build
+
+# Install to /usr/local/bin
+sudo make install
+
+# Print compiled version
+scrinium version
+```
+
+### 2. Configuration (`scrinium.json`)
+
+Configure Scrinium in your repository root. Specify your wiki directory and which files are protected under write governance:
+
+```json
+{
+  "wiki_root": "./llm-wiki",
+  "write_governance": {
+    "protected_files": [
+      "rules.md",
+      "architecture/*",
+      "core-decisions/*"
+    ]
+  }
+}
+```
+*Note: On its first run, Scrinium automatically creates the configured `wiki_root` and bootstraps `scrinium-guide.md` to help agents onboard.*
+
+### 3. Generate Agent Instructions
+
+Enforce Scrinium usage by generating the repository's instruction blocks:
+
+```bash
+scrinium enforce-agents
+```
+This updates Scrinium-managed blocks in `AGENTS.md` and `CLAUDE.md`, directing agents to start Scrinium, read the required rules, and finish their sessions before reporting completion.
+
+---
+
+## MCP Tools Reference
+
+Scrinium exposes the following tools to connected MCP clients:
+
+| Tool Name | Type | Description |
+| :--- | :--- | :--- |
+| `capabilities` | Read-only | Returns Scrinium's active governance rules, tools list, and instructions. Call this first to orient the agent. |
+| `setup_llm_wiki` | Write | Bootstraps the standard `llm-wiki` folder structure and template pages. Leaves existing files unchanged. |
+| `begin_session` | Write | Starts a tracked work session. Wiki writes are blocked until a session is activated. |
+| `session_status` | Read-only | Returns pages read, pages written, and pending maintenance requirements. |
+| `finish_session` | Write | Marks the session inactive. Fails if required log, index, or registry updates are missing. |
+| `read_wiki_page` | Read-only | Reads the contents of any wiki page. |
+| `update_wiki_page` | Write | Overwrites a wiki page. Rejects writes targeting protected foundational documents with instructions on how to propose drafts. |
+| `create_page` | Write | Creates a new wiki page only if it does not already exist. |
+| `move_page` | Write | Renames or moves a wiki page. Rejects if destination exists or paths are protected. |
+| `archive_page` | Write | Moves obsolete pages under `archive/` instead of deleting them. |
+| `create_draft` | Write | Proposes changes to protected files by writing to the `drafts/` directory. |
+| `append_log` | Write | Appends content to a log file. Bypasses governance for directory-pattern protections (e.g. `core-decisions/*`) but blocks directly protected files (e.g. `rules.md`). |
+| `lint_llm_wiki` | Read-only | Checks wiki health: missing standard pages, index gaps, log gaps, provenance gaps, and prompt-injection risks. |
+| `adopt_llm_wiki` | Read-only | Scans manual or non-Scrinium wikis and provides recommendations for onboarding. |
+| `register_source` | Write | Registers raw sources in `source-registry.md` and creates summary stubs. |
+
+---
+
+## Development & Verification
+
+To run tests and perform code quality verification, use the Makefile:
+
+```bash
+# Run unit tests
+make test
+
+# Run full verify pipeline (format, vet, staticcheck, govulncheck)
+make verify
+```

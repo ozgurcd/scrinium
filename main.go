@@ -14,6 +14,10 @@ import (
 func main() {
 	log.SetOutput(os.Stderr)
 
+	if scrinium.IsCLISubcommand(os.Args[1:]) {
+		os.Exit(scrinium.RunCLI(os.Args[1:], os.Stdout, os.Stderr))
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 

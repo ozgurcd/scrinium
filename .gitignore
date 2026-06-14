@@ -1,5 +1,5 @@
 # Build artifacts
-scrinium
+/scrinium
 
 # Atomic write temp files
 .scrinium-*.tmp
@@ -7,5 +7,5 @@ scrinium
 .gograph/
 .codex/
 AGENTS.md
-llm-wiki
+raw/
 .DS_Store

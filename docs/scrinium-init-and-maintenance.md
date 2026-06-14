@@ -32,6 +32,37 @@ Recommended operating pages:
 
 Scrinium's `setup_llm_wiki` tool creates the standard skeleton for missing pages and leaves existing pages unchanged.
 
+## Agent Enforcement Files
+
+After `scrinium.json` exists, run the CLI enforcement command from the
+repository root:
+
+```bash
+scrinium enforce-agents
+```
+
+This command does not start the MCP stdio server. It creates or refreshes
+Scrinium-managed blocks in:
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/scrinium-agent-enforcement.md`
+
+Existing content outside the managed block is preserved. Use:
+
+```bash
+scrinium enforce-agents --dry-run
+scrinium enforce-agents --check
+```
+
+`--dry-run` shows planned file changes. `--check` exits non-zero when the
+enforcement files are missing or stale.
+
+The generated instructions are designed to coexist with harness/plugin
+bootstraps such as Superpowers. Agents are told to load those bootstrap
+instructions first, then call Scrinium `capabilities` before project work or
+wiki writes.
+
 ## Brand New Repository
 
 Use this path when the project has no `llm-wiki/` yet.
@@ -55,13 +86,19 @@ Use this path when the project has no `llm-wiki/` yet.
 
    It should tell agents to call `capabilities`, start a session, read `index.md` and `agent-rules.md`, read relevant workflow pages, and update `log.md` after changes.
 
-3. Start Scrinium with the project config.
+3. Generate agent enforcement files.
+
+   ```bash
+   scrinium enforce-agents
+   ```
+
+4. Start Scrinium with the project config.
 
    ```bash
    ./scrinium ./scrinium.json
    ```
 
-4. In the connected MCP client, call:
+5. In the connected MCP client, call:
 
    ```text
    capabilities
@@ -72,7 +109,7 @@ Use this path when the project has no `llm-wiki/` yet.
    read_wiki_page agent-rules.md
    ```
 
-5. Fill in project-specific wiki pages.
+6. Fill in project-specific wiki pages.
 
    For a new repo, create or update:
 
@@ -81,7 +118,7 @@ Use this path when the project has no `llm-wiki/` yet.
    - `llm-wiki/projects/<project-name>.md`
    - `llm-wiki/log.md`
 
-6. If source material exists outside the wiki, put it under `raw/` and ingest it through the ingest workflow.
+7. If source material exists outside the wiki, put it under `raw/` and ingest it through the ingest workflow.
 
    For ingestion, read:
 
@@ -92,7 +129,7 @@ Use this path when the project has no `llm-wiki/` yet.
 
    Then use `register_source` to create the source summary stub and update `source-registry.md`, update affected pages, update `index.md`, and append `log.md`.
 
-7. Before finishing, call:
+8. Before finishing, call:
 
    ```text
    session_status
@@ -111,13 +148,19 @@ Use this path when `llm-wiki/` already exists.
 
    Use protected patterns for pages that should not be overwritten directly. Keep `agent-rules.md` writable if it is part of the editable agent schema.
 
-3. Start Scrinium with the project config.
+3. Generate or refresh agent enforcement files.
+
+   ```bash
+   scrinium enforce-agents
+   ```
+
+4. Start Scrinium with the project config.
 
    ```bash
    ./scrinium ./scrinium.json
    ```
 
-4. In the connected MCP client, call:
+5. In the connected MCP client, call:
 
    ```text
    capabilities
@@ -131,7 +174,7 @@ Use this path when `llm-wiki/` already exists.
 
    `setup_llm_wiki` is safe for adoption because it only creates missing standard pages. It does not overwrite existing pages.
 
-5. Run an adoption lint pass.
+6. Run an adoption lint pass.
 
    Read:
 
@@ -153,7 +196,7 @@ Use this path when `llm-wiki/` already exists.
 
    Use `adopt_llm_wiki` for the initial adoption report and `lint_llm_wiki` for recurring health checks.
 
-6. Normalize structure gradually.
+7. Normalize structure gradually.
 
    Prefer additive fixes:
 
@@ -166,11 +209,11 @@ Use this path when `llm-wiki/` already exists.
    - use `move_page` for renames and update `index.md` afterward
    - use `archive_page` instead of delete for obsolete pages
 
-7. Resolve conflicts before treating the wiki as authoritative.
+8. Resolve conflicts before treating the wiki as authoritative.
 
    If existing pages contradict each other, do not silently choose one. Record the conflict, ask the owner when needed, and update the wiki only after the current truth is clear.
 
-8. Finish the adoption session.
+9. Finish the adoption session.
 
    ```text
    session_status
