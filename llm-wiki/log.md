@@ -136,3 +136,12 @@ Event types include `session`, `ingest`, `query`, `lint`, `decision`, and `maint
 - Files touched: `Makefile`, `.bumpversion.cfg`, `cmd/scrinium/cli.go`, `cmd/scrinium/app.go`, `cmd/scrinium/app_test.go`, `README.md`.
 - Outcome: `make build` injects `VERSION` with Go ldflags; `scrinium version`, MCP initialize metadata, and `capabilities` report the embedded version. `.bumpversion.cfg` tracks SemVer and updates `Makefile` without automatic commits or tags.
 - Validation: Focused version tests, `make version`, `make verify`, `./scrinium version`, JSON-RPC `capabilities` smoke check, `gograph build . --precise`, and `gograph review --uncommitted` passed.
+
+## [2026-06-14] maintenance | Fix GoReleaser deprecations and re-run upload failure
+
+- Objective: Fix three issues from the GitHub Actions CI failure: deprecated `archives.format`, deprecated `brews`, and 422 asset-already-exists errors on re-triggered runs.
+- Pages touched: `log.md`.
+- Files touched: `.goreleaser.yaml`.
+- Outcome: Replaced `archives.format` with `archives.formats: [tar.gz]`; replaced `brews` with `homebrew_casks` (directory `Formula` → `Casks`, `install` block → `binaries` list, removed `license` field not in cask schema); added `release.replace_existing_artifacts: true` so re-runs overwrite existing assets instead of failing with 422.
+- Validation: YAML syntax validated with `ruby -e "require 'yaml'; YAML.load_file(...)"`. GoReleaser not installed locally; config will be validated by CI on next release.
+- Follow-ups: Old `Formula/scrinium.rb` in the tap is now orphaned — can be deleted manually from `ozgurcd/homebrew-tap` after the next successful release.
