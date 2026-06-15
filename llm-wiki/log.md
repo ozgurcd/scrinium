@@ -145,3 +145,12 @@ Event types include `session`, `ingest`, `query`, `lint`, `decision`, and `maint
 - Outcome: Replaced `archives.format` with `archives.formats: [tar.gz]`; replaced `brews` with `homebrew_casks` (directory `Formula` → `Casks`, `install` block → `binaries` list, removed `license` field not in cask schema); added `release.replace_existing_artifacts: true` so re-runs overwrite existing assets instead of failing with 422.
 - Validation: YAML syntax validated with `ruby -e "require 'yaml'; YAML.load_file(...)"`. GoReleaser not installed locally; config will be validated by CI on next release.
 - Follow-ups: Old `Formula/scrinium.rb` in the tap is now orphaned — can be deleted manually from `ozgurcd/homebrew-tap` after the next successful release.
+
+## [2026-06-14] maintenance | Document ingestion workflow in README
+
+- Objective: Address missing documentation on how document ingestion works under Scrinium.
+- Pages touched: `log.md`.
+- Files touched: `README.md`.
+- Outcome: Added Section "4. Document Ingestion Workflow" to `README.md` detail-mapping the end-to-end ingestion flow from copying files to `raw/`, starting session, reading `workflows/ingest.md`, using `register_source` tool, summarizing, propagating changes, updating registry/index/log, and finishing the session.
+- Validation: `make verify` passed successfully.
+

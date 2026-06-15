@@ -88,6 +88,19 @@ scrinium enforce-agents
 ```
 This updates Scrinium-managed blocks in `AGENTS.md` and `CLAUDE.md`, directing agents to start Scrinium, read the required rules, and finish their sessions before reporting completion.
 
+### 4. Document Ingestion Workflow
+
+To ingest external documents, notes, or raw specifications into your managed wiki:
+
+1. **Place Raw Sources**: Copy raw documents into the `raw/` directory (e.g. `raw/inbox/`). The `raw/` directory serves as an immutable source layer; original files should not be modified during ingestion.
+2. **Start Ingest Session**: Begin a Scrinium work session via the `begin_session` tool.
+3. **Read Ingest Rules**: Read `llm-wiki/workflows/ingest.md` to satisfy the safety checks and unlock write access to source directories.
+4. **Register and Summarize**:
+   - Use the `register_source` tool to assign a unique ID (`SRC-YYYYMMDD-slug`) to the source and add it to `llm-wiki/source-registry.md`.
+   - Create a summary of the source at `llm-wiki/sources/<source-id>.md`.
+5. **Propagate and Link**: Update relevant topic/architectural pages in the wiki, referencing the source ID for provenance.
+6. **Log and Complete**: Update the registry, index `llm-wiki/index.md`, and append an entry in `llm-wiki/log.md`. End the session by calling `finish_session`.
+
 ---
 
 ## MCP Tools Reference
