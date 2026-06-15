@@ -88,18 +88,24 @@ scrinium enforce-agents
 ```
 This updates Scrinium-managed blocks in `AGENTS.md` and `CLAUDE.md`, directing agents to start Scrinium, read the required rules, and finish their sessions before reporting completion.
 
-### 4. Document Ingestion Workflow
+### 4. Document Ingestion Prompt
 
-To ingest external documents, notes, or raw specifications into your managed wiki:
+Copy and paste the following prompt to your coding agent to ingest raw documents (placed under `raw/inbox/`) into the wiki:
 
-1. **Place Raw Sources**: Copy raw documents into the `raw/` directory (e.g. `raw/inbox/`). The `raw/` directory serves as an immutable source layer; original files should not be modified during ingestion.
-2. **Start Ingest Session**: Begin a Scrinium work session via the `begin_session` tool.
-3. **Read Ingest Rules**: Read `llm-wiki/workflows/ingest.md` to satisfy the safety checks and unlock write access to source directories.
-4. **Register and Summarize**:
-   - Use the `register_source` tool to assign a unique ID (`SRC-YYYYMMDD-slug`) to the source and add it to `llm-wiki/source-registry.md`.
-   - Create a summary of the source at `llm-wiki/sources/<source-id>.md`.
-5. **Propagate and Link**: Update relevant topic/architectural pages in the wiki, referencing the source ID for provenance.
-6. **Log and Complete**: Update the registry, index `llm-wiki/index.md`, and append an entry in `llm-wiki/log.md`. End the session by calling `finish_session`.
+```text
+Please ingest the raw document located at raw/inbox/<YOUR_FILE_NAME> into our project wiki. 
+
+To do this, use the Scrinium MCP server and follow these steps:
+1. Call `capabilities` to start.
+2. Run `begin_session` to initialize your workspace session.
+3. Read 'llm-wiki/workflows/ingest.md' to follow the ingestion safety guidelines and process.
+4. Call `register_source` to assign a unique ID (in the format SRC-YYYYMMDD-slug) and add the source to the registry.
+5. Create a structured summary at `llm-wiki/sources/<source-id>.md`.
+6. Update any affected topic/project pages with findings or claims (referencing the source ID for provenance).
+7. Update the registry index at `llm-wiki/source-registry.md` and page list at `llm-wiki/index.md`.
+8. Append a parseable entry to `llm-wiki/log.md` using the Source Ingest Template from `llm-wiki/prompt-templates.md`.
+9. Verify your workspace and call `finish_session` before reporting completion.
+```
 
 ---
 

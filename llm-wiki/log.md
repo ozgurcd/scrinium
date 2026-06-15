@@ -151,6 +151,7 @@ Event types include `session`, `ingest`, `query`, `lint`, `decision`, and `maint
 - Objective: Address missing documentation on how document ingestion works under Scrinium.
 - Pages touched: `log.md`.
 - Files touched: `README.md`.
-- Outcome: Added Section "4. Document Ingestion Workflow" to `README.md` detail-mapping the end-to-end ingestion flow from copying files to `raw/`, starting session, reading `workflows/ingest.md`, using `register_source` tool, summarizing, propagating changes, updating registry/index/log, and finishing the session.
+- Outcome: Added Section "4. Document Ingestion Prompt" to `README.md` providing a copy-pasteable prompt template for instructing coding agents to perform the end-to-end ingestion flow.
 - Validation: `make verify` passed successfully.
+
 
