@@ -1,6 +1,8 @@
 package scrinium
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -21,13 +23,35 @@ var version = "0.1.0"
 // IsCLISubcommand reports whether args select a normal CLI command instead of
 // MCP stdio server mode.
 func IsCLISubcommand(args []string) bool {
-	return len(args) > 0 && (args[0] == "enforce-agents" || args[0] == "version")
+	if len(args) == 0 {
+		return false
+	}
+	known := map[string]bool{
+		"enforce-agents":   true,
+		"version":          true,
+		"capabilities":     true,
+		"setup_llm_wiki":   true,
+		"begin_session":    true,
+		"session_status":   true,
+		"finish_session":   true,
+		"lint_llm_wiki":    true,
+		"adopt_llm_wiki":   true,
+		"register_source":  true,
+		"create_page":      true,
+		"move_page":        true,
+		"archive_page":     true,
+		"read_wiki_page":   true,
+		"update_wiki_page": true,
+		"create_draft":     true,
+		"append_log":       true,
+	}
+	return known[args[0]]
 }
 
 // RunCLI executes Scrinium's non-MCP CLI commands.
 func RunCLI(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "Usage: scrinium enforce-agents [--repo PATH] [--agents LIST] [--dry-run] [--check]")
+		fmt.Fprintln(stderr, "Usage: scrinium [enforce-agents|version|<mcp_tool_name>] ...")
 		return 2
 	}
 
@@ -49,8 +73,15 @@ func RunCLI(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "scrinium %s\n", version)
 		return 0
 	default:
-		fmt.Fprintf(stderr, "unknown command %q\n", args[0])
-		return 2
+		// Any other known subcommand is delegated as an MCP tool call
+		if err := runMCPToolAsCLI(args[0], args[1:], stdout); err != nil {
+			if errors.Is(err, flag.ErrHelp) {
+				return 0
+			}
+			fmt.Fprintf(stderr, "scrinium %s: %v\n", args[0], err)
+			return 1
+		}
+		return 0
 	}
 }
 
@@ -312,4 +343,106 @@ Use the same Scrinium MCP server configuration for Codex, Claude Code, OpenCode,
 
 Tool-specific config file names can change. Prefer this shared instruction layer plus the MCP snippet unless a tool's current documentation defines a stable project-local config path.
 `, agentList, configPath)
+}
+
+func runMCPToolAsCLI(toolName string, args []string, stdout io.Writer) error {
+	fs := flag.NewFlagSet(toolName, flag.ContinueOnError)
+	fs.SetOutput(stdout)
+	fs.Usage = func() {
+		fmt.Fprintf(stdout, "Usage: scrinium %s [--repo PATH] [other-flags]\n", toolName)
+		fs.PrintDefaults()
+	}
+
+	var repo string
+	fs.StringVar(&repo, "repo", ".", "repository root containing scrinium.json")
+
+	// Declare flags for all known MCP parameters
+	var path, content, logFile, sourceID, title, rawPath, trustLevel, from, to, archivePath, reason, name string
+	fs.StringVar(&path, "path", "", "wiki page path")
+	fs.StringVar(&content, "content", "", "content to write or append")
+	fs.StringVar(&logFile, "log_file", "", "log file path")
+	fs.StringVar(&sourceID, "source_id", "", "stable source ID (SRC-YYYYMMDD-slug)")
+	fs.StringVar(&title, "title", "", "source title")
+	fs.StringVar(&rawPath, "raw_path", "", "original raw source path")
+	fs.StringVar(&trustLevel, "trust_level", "", "trust level (trusted-project, trusted-owner, external, unknown)")
+	fs.StringVar(&from, "from", "", "source page path")
+	fs.StringVar(&to, "to", "", "destination page path")
+	fs.StringVar(&archivePath, "archive_path", "", "optional archive path")
+	fs.StringVar(&reason, "reason", "", "optional reason")
+	fs.StringVar(&name, "name", "", "draft filename")
+
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 0 {
+		return fmt.Errorf("unexpected positional arguments: %s", strings.Join(fs.Args(), " "))
+	}
+
+	// Build parameters map based on what flags were set
+	params := make(map[string]any)
+	visit := func(f *flag.Flag) {
+		if f.Name == "repo" {
+			return
+		}
+		params[f.Name] = f.Value.String()
+	}
+	fs.Visit(visit)
+
+	absRepo, err := filepath.Abs(repo)
+	if err != nil {
+		return fmt.Errorf("resolve repo path: %w", err)
+	}
+
+	configPath := filepath.Join(absRepo, "scrinium.json")
+	app, err := NewApp(configPath)
+	if err != nil {
+		return err
+	}
+
+	// Construct the JSON-RPC raw message
+	reqStruct := struct {
+		Name      string         `json:"name"`
+		Arguments map[string]any `json:"arguments"`
+	}{
+		Name:      toolName,
+		Arguments: params,
+	}
+	reqBytes, err := json.Marshal(reqStruct)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	res, err := app.handleToolCall(reqBytes)
+	if err != nil {
+		return err
+	}
+
+	// Print the result
+	m, ok := res.(map[string]any)
+	if !ok {
+		return fmt.Errorf("invalid response type from tool handler")
+	}
+
+	isError, _ := m["isError"].(bool)
+	contentArr, _ := m["content"].([]map[string]any)
+	if len(contentArr) == 0 {
+		if isError {
+			return fmt.Errorf("tool execution failed")
+		}
+		return nil
+	}
+
+	text, _ := contentArr[0]["text"].(string)
+	if isError {
+		return fmt.Errorf("%s", text)
+	}
+
+	// If the text is JSON, let's pretty-print it. Otherwise, print directly.
+	var pretty bytes.Buffer
+	if err := json.Indent(&pretty, []byte(text), "", "  "); err == nil {
+		fmt.Fprintln(stdout, pretty.String())
+	} else {
+		fmt.Fprintln(stdout, text)
+	}
+	return nil
 }

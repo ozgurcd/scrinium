@@ -1232,3 +1232,67 @@ func toolText(t *testing.T, result any) string {
 	text, _ := contentArr[0]["text"].(string)
 	return text
 }
+
+func TestRunCLIMCPTools(t *testing.T) {
+	// Create a temporary directory with a scrinium.json and a dummy wiki
+	tmpDir, err := os.MkdirTemp("", "scrinium-cli-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	configContent := `{
+		"wiki_root": "./llm-wiki",
+		"write_governance": {
+			"protected_files": [
+				"rules.md"
+			]
+		}
+	}`
+	configPath := filepath.Join(tmpDir, "scrinium.json")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	wikiRoot := filepath.Join(tmpDir, "llm-wiki")
+	if err := os.MkdirAll(wikiRoot, 0755); err != nil {
+		t.Fatalf("failed to create wiki root: %v", err)
+	}
+
+	indexContent := "# Index"
+	if err := os.WriteFile(filepath.Join(wikiRoot, "index.md"), []byte(indexContent), 0644); err != nil {
+		t.Fatalf("failed to write index: %v", err)
+	}
+
+	// 1. Test capabilities subcommand
+	var stdout, stderr bytes.Buffer
+	code := RunCLI([]string{"capabilities", "--repo", tmpDir}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d. stderr: %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "read_wiki_page") || !strings.Contains(stdout.String(), "rules.md") {
+		t.Fatalf("unexpected capabilities output: %s", stdout.String())
+	}
+
+	// 2. Test read_wiki_page subcommand
+	stdout.Reset()
+	stderr.Reset()
+	code = RunCLI([]string{"read_wiki_page", "--repo", tmpDir, "--path", "index.md"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d. stderr: %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "# Index") {
+		t.Fatalf("unexpected read_wiki_page output: %s", stdout.String())
+	}
+
+	// 3. Test missing config error
+	stdout.Reset()
+	stderr.Reset()
+	code = RunCLI([]string{"capabilities", "--repo", filepath.Join(tmpDir, "non-existent")}, &stdout, &stderr)
+	if code != 1 {
+		t.Fatalf("expected exit code 1, got %d", code)
+	}
+	if !strings.Contains(stderr.String(), "failed to load config") {
+		t.Fatalf("expected failed to load config error, got: %s", stderr.String())
+	}
+}

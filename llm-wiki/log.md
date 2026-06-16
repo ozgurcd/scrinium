@@ -154,4 +154,13 @@ Event types include `session`, `ingest`, `query`, `lint`, `decision`, and `maint
 - Outcome: Added Section "4. Document Ingestion Prompt" to `README.md` providing a copy-pasteable prompt template for instructing coding agents to perform the end-to-end ingestion flow.
 - Validation: `make verify` passed successfully.
 
+## [2026-06-16] maintenance | Map MCP tools to CLI subcommands
+
+- Objective: Support running MCP tools directly from the CLI to unify tool execution and improve ease of manual testing/checking.
+- Pages touched: `log.md`.
+- Files touched: `cmd/scrinium/cli.go`, `cmd/scrinium/app_test.go`.
+- Outcome: Updated `IsCLISubcommand` and `RunCLI` to match all known MCP tool names. Implemented `runMCPToolAsCLI` which registers matching flags for all MCP parameters (e.g. `--path`, `--content`, `--log_file`, etc.), initializes the App relative to `--repo` (default `.` for `./scrinium.json`), dispatches the call through `App.handleToolCall()`, and formats the outputs (with pretty-printed JSON if applicable). Cleaned up unused `stderr` parameter in `runMCPToolAsCLI`.
+- Validation: Added `TestRunCLIMCPTools` verifying capabilities, read_wiki_page, and missing config errors; `make verify` passed successfully.
+
+
 
