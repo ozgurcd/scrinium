@@ -13,67 +13,44 @@ sources:
   - SRC-YYYYMMDD-slug
 ```
 
-Frontmatter is recommended for new generated wiki pages. Preserve existing page style when updating older pages unless a schema migration is explicitly requested.
+Frontmatter is recommended for new generated wiki pages. Preserve existing style unless migration is explicitly requested.
 
-## Source Page
+## Canonical Source Record
+
+Path: `sources/records/SRC-YYYYMMDD-slug.json`
+
+Strict schema `scrinium.source/v1` records the immutable source ID, title, closed source/origin/trust values, confined raw path and exact-byte SHA-256 fingerprint, dates, lifecycle, derived references, and creation/update timestamps. Write it through Scrinium source operations; do not repair malformed records as prose.
+
+A record establishes provenance and byte identity. It does not prove semantic correctness or verify claims derived from the source.
+
+## Source Summary Page
 
 Path: `sources/SRC-YYYYMMDD-slug.md`
 
 Required sections:
 
 - `# <Source Title>`
-- `## Metadata`: source ID, original path, source type, received date, ingest date, trust level.
+- `## Metadata`: source ID, canonical record, original path, type, dates, trust, and raw fingerprint.
 - `## Summary`: concise neutral summary.
-- `## Key Claims`: bullet list with claim IDs if useful.
-- `## Entities and Concepts`: links to affected pages.
-- `## Contradictions or Updates`: conflicts with existing wiki content.
-- `## Derived Pages`: pages created or updated from this source.
+- `## Key Claims`: claim IDs where useful.
+- `## Entities and Concepts`: affected-page links.
+- `## Contradictions or Updates`: conflicts with existing content.
+- `## Derived Pages`: created or updated pages.
+
+The Markdown summary is a human-readable derivative, not canonical metadata.
 
 ## Entity Page
 
-Use for people, organizations, systems, repositories, products, or durable named objects.
-
-Required sections:
-
-- Overview.
-- Current state.
-- Known facts with source IDs.
-- Open questions.
-- Related pages.
+Include overview, current state, sourced facts, open questions, and related pages.
 
 ## Concept Page
 
-Use for recurring ideas, patterns, practices, or technical concepts.
-
-Required sections:
-
-- Definition.
-- Why it matters.
-- Evidence and examples.
-- Related concepts.
-- Open questions.
+Include definition, importance, evidence/examples, related concepts, and open questions.
 
 ## Project or Status Page
 
-Use for current implementation state.
-
-Required sections:
-
-- Goal.
-- Current status.
-- Active decisions.
-- Next actions.
-- Risks or blockers.
-- Source or decision references.
+Include goal, current status, active decisions, next actions, risks/blockers, and references.
 
 ## Synthesis Page
 
-Use for durable analysis created from multiple pages or sources.
-
-Required sections:
-
-- Question or thesis.
-- Answer or synthesis.
-- Evidence map.
-- Alternatives considered.
-- Confidence and gaps.
+Include question/thesis, synthesis, evidence map, alternatives, and confidence/gaps.

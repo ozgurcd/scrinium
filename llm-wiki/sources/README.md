@@ -1,7 +1,12 @@
-# Source Summaries
+# Source Summaries and Records
 
-This directory contains trusted derivative summaries of raw source files.
+This directory has two distinct layers:
 
-Each ingested source should have one page named `SRC-YYYYMMDD-slug.md` and should follow `schemas/page-schemas.md`.
+- `records/SRC-YYYYMMDD-slug.json` contains canonical deterministic source metadata.
+- `SRC-YYYYMMDD-slug.md` contains human-readable derivative summaries.
 
-Raw source files stay outside this directory under `raw/`.
+Raw source files remain under `raw/` and must not be modified during ingestion. Scrinium records a full SHA-256 fingerprint of exact raw bytes; changed bytes remain stale until explicitly accepted.
+
+Canonical provenance identifies a source and its bytes. It does not prove the source semantically correct or verify claims derived from it.
+
+Summaries follow `schemas/page-schemas.md`. `source-registry.md` is a generated compatibility view and is not authoritative metadata.

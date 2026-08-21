@@ -4,6 +4,7 @@ project_name: scrinium
 builds:
   - env:
       - CGO_ENABLED=0
+      - GOTOOLCHAIN=go1.27.0
     goos:
       - linux
       - darwin

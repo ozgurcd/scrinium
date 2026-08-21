@@ -1,5 +1,7 @@
 # Scrinium Init and LLM Wiki Maintenance
 
+Scrinium v0.2 development, verification, and release builds require Go 1.27 or newer. Use the toolchain declared in `go.mod`; do not run the supported verification gate under Go 1.26.
+
 This guide explains how to start using Scrinium in two cases:
 
 - a brand new repository with no `llm-wiki/`
@@ -22,10 +24,13 @@ At minimum, the repository should have:
 
 Recommended operating pages:
 
+- `llm-wiki/sources/records/<source-id>.json` — canonical deterministic source metadata
 - `llm-wiki/source-registry.md`
 - `llm-wiki/workflows/ingest.md`
 - `llm-wiki/workflows/query.md`
 - `llm-wiki/workflows/lint.md`
+
+Canonical source records describe provenance and bind repository-local raw sources to exact bytes. They do not establish that a source's statements—or claims derived from it—are semantically correct. Markdown summaries and `source-registry.md` are human-readable derivatives.
 - `llm-wiki/schemas/page-schemas.md`
 - `llm-wiki/security/untrusted-sources.md`
 - `llm-wiki/sources/README.md`
@@ -127,7 +132,7 @@ Use this path when the project has no `llm-wiki/` yet.
    - `security/untrusted-sources.md`
    - `source-registry.md`
 
-   Then use `register_source` to create the source summary stub and update `source-registry.md`, update affected pages, update `index.md`, and append `log.md`.
+   Then use `register_source` to verify and fingerprint the raw file, create canonical `sources/records/<source-id>.json`, create the source summary stub, and regenerate `source-registry.md`. Update affected pages, `index.md`, and `log.md` separately.
 
 8. Before finishing, call:
 
@@ -202,7 +207,8 @@ Use this path when `llm-wiki/` already exists.
 
    - update `index.md` to point to existing pages
    - add a `log.md` entry explaining adoption
-   - use `register_source` for known source-derived pages
+   - run `assess_source_migration`, review all reported debt, and use explicit `apply_source_migration` only for deterministic candidates
+   - use `register_source` for new sources after legacy source metadata is migrated
    - create `sources/` summaries only when source provenance is available
    - create drafts for protected pages instead of overwriting them
    - use `create_page` when creating new pages so existing pages are not overwritten accidentally
@@ -227,7 +233,7 @@ Use this path when `llm-wiki/` already exists.
 For every non-trivial project task:
 
 1. Call `capabilities`.
-2. Call `begin_session`.
+2. Call `begin_session` and retain the returned durable session ID.
 3. Read `index.md` and `agent-rules.md`.
 4. Read workflow pages that match the task:
    - source ingestion: `workflows/ingest.md`
@@ -237,11 +243,25 @@ For every non-trivial project task:
 6. Update relevant wiki pages.
 7. Append `log.md`.
 8. Update `index.md` when pages are added or renamed.
-9. Update `source-registry.md` when source summaries are added or changed.
-10. Call `session_status`.
-11. Call `finish_session`.
+9. Update canonical source records through typed source operations, then use `rebuild_source_registry` when the compatibility view needs regeneration. Manual registry edits are not canonical.
+10. Call `session_status` for that session ID.
+11. Call `finish_session` for that session ID.
 
 If `finish_session` fails, treat the error as the remaining checklist.
+
+Sessions are durable tracked work-session checklists stored as ignored
+repository-local runtime metadata. Separate CLI processes pass
+`--session <session-id>`; an MCP connection remembers the ID returned by
+`begin_session` and can restore that convenience with `continue_session`
+after a restart. Use `list_active_sessions` to find unfinished work and
+`abandon_session` with a reason when work should close without claiming
+successful completion. Finished and abandoned sessions reject later writes.
+Scrinium never deletes or silently finishes stale sessions.
+
+A session ID is a coordination identifier, not an authentication credential.
+The checklist covers only reads and writes Scrinium observed through its
+interfaces. It is not a security boundary and does not prove agent compliance
+or account for direct filesystem changes.
 
 When `archive_page` is used, the archived page becomes historical only. Remove it from active working context, do not cite it for current requirements, re-read `index.md` and the replacement/current page if one exists, update `index.md`, and append `log.md`.
 
@@ -249,7 +269,7 @@ When `archive_page` is used, the archived page becomes historical only. Remove i
 
 Scrinium rejects wiki writes when:
 
-- there is no active session
+- there is no explicit active durable session ID
 - `index.md` has not been read in the active session
 - `agent-rules.md` has not been read in the active session
 - a source summary or `source-registry.md` write is attempted before reading `workflows/ingest.md`

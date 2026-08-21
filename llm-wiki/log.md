@@ -164,3 +164,129 @@ Event types include `session`, `ingest`, `query`, `lint`, `decision`, and `maint
 
 
 
+## [2026-08-20] maintenance | Align platform startup governance
+
+- Objective: Make repository startup instructions consistently reference the existing open-source platform document.
+- Pages touched: `AGENTS.md`, `docs/v0.2-evidence-architecture.md`, `llm-wiki/log.md`.
+- Outcome: Startup governance and the architecture assessment now point to `llm-wiki/platform/open-source.md`; `llm-wiki/index.md` was already consistent and required no change.
+- Validation: Pending repository reference scan, Gograph checks, `make verify`, and `git diff --check`.
+- Follow-ups: none.
+- Validation update: Repository-wide ignored-file-inclusive scan found no remaining stale platform terminology; `gograph build . --precise`, `gograph review --uncommitted`, `make verify`, and `git diff --check` passed. No Go symbols changed and no vulnerabilities were found.
+## [2026-08-20] maintenance | Complete v0.2 Phase 1 architecture boundaries
+- Objective: Refactor Scrinium transport, application workflows, filesystem confinement, write governance, in-memory session bookkeeping, and compatibility lint into explicit packages without beginning Claim/Evidence implementation.
+- Pages touched: projects/scrinium.md, log.md
+- Outcome: cmd/scrinium/app.go is a thin composition and compatibility façade; internal/mcp adapts JSON-RPC to typed internal/app workflows; internal/store, internal/governance, internal/session, and internal/lint own their existing responsibilities. Session-dependent direct CLI workflows now fail explicitly because sessions remain process-local. CI runs make verify on pull requests and pushes to main. The architecture document records the fixed owner decisions for semantic immutable claim IDs, observation-only manual verification, per-source JSON metadata, v0.2 compatibility interfaces, and complete validation history.
+- Validation: gograph precise build and review completed; make verify passed; git diff --check passed.
+- Follow-ups: Claim, Evidence, Validation, durable sessions, per-source JSON records, Gograph adapters, and Rulefloor adapters remain out of scope until separately authorized.
+
+## [2026-08-20] maintenance | Add v0.2 Phase 2 evidence-backed knowledge core
+
+- Objective: Introduce canonical Claim, Evidence, ValidationBinding, and ValidationResult records without adding validator integrations, durable sessions, or per-source JSON.
+- Pages touched: `projects/scrinium.md`, `index.md`, `drafts/architecture-overview-v0.2-phase2-2026-08-20.md`, `log.md`.
+- Outcome: Added the transport-independent `internal/knowledge` model; strict deterministic one-file-per-claim JSON persistence under `llm-wiki/claims/`; typed application claim operations; lifecycle-independent derived assessment and freshness; separate deterministic claim lint; and a tagged-only, write-free migration assessment. Existing MCP/CLI page compatibility behavior remains unchanged, and no Gograph or Rulefloor adapter was added.
+- Trust behavior: `cannot_evaluate` never counts as pass; a later `cannot_evaluate` removes current verified presentation; manual validation is observation-grade only; context evidence does not raise assessment; authorship is provenance rather than self-supporting evidence; shared evidence lineage is not counted as independent corroboration.
+- Validation: `make verify` passed build, uncached tests, vet, staticcheck, and govulncheck with no vulnerabilities; `git diff --check` passed; Gograph precise build indexed 36 Go files across 9 packages, configured checks passed with zero warnings, and package-boundary enforcement was unavailable because no `.gograph/boundaries.json` exists.
+- Follow-ups: Define and authenticate the generic validator execution boundary, decide the public claim MCP/CLI surface, decide cross-process claim concurrency control, then add separately authorized validator adapters. Durable sessions and per-source JSON remain deferred.
+
+
+## [2026-08-20] maintenance | Add v0.2 Phase 3 generic validation orchestration
+
+- Objective: Add a generic validator execution boundary, deterministic registry, repository-bound input fingerprints, result authenticity checks, and application-owned result persistence without adding external adapters.
+- Pages touched: `projects/scrinium.md`, `index.md`, `drafts/architecture-overview-v0.2-phase3-2026-08-20.md`, `log.md`.
+- Outcome: Added `internal/validation` descriptors, registry, isolated requests, result validation, scoped repository snapshots, and the observation-grade manual validator. Typed application operations validate one binding or all required bindings and inspect available descriptors. Validators return results only; the application persists complete history and derives state. Missing validators, unsupported schemas, repository uncertainty, cancellation, timeouts, execution errors, and unauthentic results become structured `cannot_evaluate` records. Deterministic claim lint now checks validator/binding identity, schema support, assurance ceilings, input/snapshot fingerprints, stale scoped repository state, and missing required results.
+- Trust behavior: Validator assurance cannot exceed its descriptor; manual validation cannot exceed observation grade; `cannot_evaluate` never counts as pass; previous passes lose current verified presentation when revalidation becomes unevaluable; no validator-provided assessment or freshness is accepted.
+- Validation: `make verify` passed build, uncached tests, vet, staticcheck, and govulncheck with no vulnerabilities. `git diff --check` passed. Final Gograph precise build indexed 43 Go files across 10 packages with 574 symbols and 3,142 calls; review and configured checks passed with zero errors or warnings. Package-boundary enforcement remains unavailable because no `.gograph/boundaries.json` exists.
+- Follow-ups: External adapter discovery/configuration and conformance fixtures, Gograph and Rulefloor adapters, public validation MCP/CLI surface, cross-process claim concurrency, durable sessions, and per-source JSON remain separately authorized work.
+
+
+## [2026-08-20] maintenance | Block Phase 4 on missing Rulefloor machine contract
+
+- Objective: Inspect Rulefloor's public interface before implementing the first external validator adapter.
+- Pages touched: `projects/scrinium.md`, `log.md`.
+- Outcome: Stopped before implementation. Installed Rulefloor v0.2.0 and current upstream main expose human-readable `list`, `show`, and aggregate `check` output, but no versioned JSON output and no command that evaluates one rule ID. `check --report` is a Playwright JSON input, not Rulefloor machine output. Exit codes and prose cannot reliably identify target-rule existence, armed/proof status, static versus executed evaluation, per-rule outcome, fingerprints, or structured cannot-evaluate reasons. No Scrinium code, configuration, or tests were added, and the Rulefloor repository was not modified.
+- Required external change: Rulefloor must publish a strict versioned JSON command for one rule that reports tool version, repository context, requested/effective mode and profile, existence/armed/proof state, whether the bound test actually executed, pass/fail/cannot-evaluate outcome, concise diagnostic codes, and ledger/test/proof fingerprints.
+- Validation: Pending no-code `make verify`, final Gograph check, and `git diff --check`.
+- Follow-ups: Resume the adapter only after the Rulefloor machine contract is released. Gograph integration, durable sessions, and per-source JSON remain deferred.
+
+- Validation update: `make verify` passed build, uncached tests, vet, staticcheck, and govulncheck with no vulnerabilities. Final Gograph precise build indexed 43 Go files across 10 packages with 574 symbols and 3,142 calls; review and configured checks passed with zero errors or warnings, with package boundaries skipped because `.gograph/boundaries.json` is absent. `git diff --check` passed.
+## [2026-08-20] maintenance | Add v0.2 Rulefloor validator adapter
+
+- Objective: Integrate Rulefloor through Scrinium's generic validator boundary without importing Rulefloor packages or adding a Rulefloor-specific public command.
+- Code touched: `internal/integrations/rulefloor/validator.go`, generic validation-result metadata/diagnostics and adapter-owned binding validation seams, application configuration/composition, deterministic lint, and associated tests.
+- Configuration: `validators.rulefloor.executable` defaults to `rulefloor`; missing or invalid Rulefloor discovery does not block startup.
+- Guarantee: Static pass records selected-rule ledger/test binding integrity at observation grade. Execute pass reaches verification grade only when selected-rule execution is requested, performed, passing, repository-bound, fingerprint-bound, and structurally authentic. Neither establishes unrelated project correctness.
+- Failure behavior: Missing tools, unsupported execution, malformed/inconsistent JSON, outcome/exit mismatch, cancellation, timeout, repository mismatch, and fingerprint mismatch produce `cannot_evaluate`, never infrastructure-derived `fail`.
+- Documentation touched: `docs/v0.2-evidence-architecture.md` and `projects/scrinium.md`.
+- Validation: `make verify` passed build, uncached tests, vet, staticcheck, and govulncheck with no vulnerabilities. `git diff --check` passed. Final Gograph precise build indexed 45 Go files across 11 packages with 675 symbols and 3,625 calls; configured checks passed with zero errors or warnings, and the process-execution flow audit found no unsanitized claim-controlled path. Package boundaries were skipped because `.gograph/boundaries.json` does not exist.
+- Follow-ups: Gograph adapter, durable sessions, per-source JSON, public claim-validation transport, and cross-process claim locking remain separately authorized work.
+
+- Conformance update: A read-only probe of the released Rulefloor JSON contract confirmed that missing and unarmed static rules use `static_integrity: not_performed` with overall `cannot_evaluate`. The adapter and hermetic fixtures now accept that exact contract while preserving the Rulefloor reason code; locally invalid rule IDs are rejected before process execution. `make verify`, final Gograph precise/check/flow gates, and `git diff --check` passed again after this alignment.
+
+## [2026-08-20] maintenance | Implement Gograph validation adapter
+- Objective: Add the optional subprocess-only Gograph structural validator through the generic validation boundary.
+- Pages touched: projects/scrinium.md, ../docs/v0.2-evidence-architecture.md, log.md
+- Outcome: Added strict gograph.binding.v1 translation for symbol_exists, package_imports, call_edge_exists, and type_implements; authenticated gograph.version.v1 and gograph.validation.v1 results; capped all Gograph outcomes at observation assurance; retained concise fingerprints and structural evidence; and degraded unavailable, stale, incomplete, or inconsistent evaluation to cannot_evaluate without rebuilding graphs.
+- Validation: make verify; gograph build . --precise; gograph review and impact inspection; git diff --check.
+- Follow-ups: durable sessions, per-source JSON, and any future public generic validation transport remain separately deferred.
+## [2026-08-20] maintenance | Align Gograph follow-up wording
+- Objective: Remove a stale phase-specific label from the current Scrinium project page after the Gograph adapter implementation.
+- Pages touched: projects/scrinium.md, log.md
+- Outcome: The remaining protected architecture-draft follow-up now refers to all implemented external-validator phases.
+- Validation: project-page consistency read and git diff --check.
+- Follow-ups: owner acceptance of an updated protected architecture overview remains pending.
+## [2026-08-20] maintenance | Add cross-process claim compare-and-swap
+
+- Objective: Prevent concurrent Scrinium processes from silently overwriting claim mutations or validation history.
+- Pages touched: `projects/scrinium.md`, `../docs/v0.2-evidence-architecture.md`, `log.md`.
+- Outcome: Claim reads now return exact-byte SHA-256 revisions. All canonical mutations require the observed revision and execute under a per-claim repository-local advisory lock; stale writers receive typed conflicts and are never merged. Validator execution remains outside locks, and results are rejected if the claim changes before persistence. Runtime lock artifacts remain outside canonical claim JSON and wiki listing.
+- Validation: `make verify` passed build, uncached tests, vet, staticcheck, and govulncheck with no vulnerabilities; post-change Gograph precise review and `git diff --check` are the final handoff gates.
+- Follow-ups: Durable sessions, per-source JSON, public generic claim-validation transport, and background validation scheduling remain separately deferred.
+## [2026-08-21] session | Durable cross-process work sessions
+- Objective: Replace process-local session bookkeeping with strict repository-local durable tracked work-session checklists.
+- Pages touched: projects/scrinium.md, index.md, ../docs/v0.2-evidence-architecture.md, ../docs/scrinium-init-and-maintenance.md
+- Outcome: Added opaque explicit session IDs, active/finished/abandoned lifecycle, strict ignored JSON records, per-session cross-process locks, CLI --session workflows, MCP connection context/continue behavior, and observed-only maintenance tracking. No per-source JSON, public claim-validation API, or background scheduler was added.
+- Validation: gograph build . --precise (52 files, 12 packages, 911 symbols, 5322 calls); gograph review --uncommitted; gograph check --uncommitted (0 errors, 4 existing complexity warnings, boundary check skipped because no boundaries configuration exists); make verify (passed); git diff --check (passed).
+- Follow-ups: Per-source JSON migration and the final public claim-validation API remain deferred. Automatic stale-session cleanup and background scheduling remain out of scope.
+
+
+## [2026-08-21] architecture | Canonical deterministic source provenance
+
+Implemented v0.2 canonical source metadata as one strict `scrinium.source/v1` JSON record per immutable source ID under `sources/records/`. Source registration is canonical-first, verifies confined regular raw files, records full SHA-256 byte fingerprints, and rebuilds `source-registry.md` as a deterministic compatibility view. Markdown source summaries remain human derivatives.
+
+Added exact-byte source revisions, per-source cross-process locking and compare-and-swap, explicit fingerprint refresh, simple current/superseded/withdrawn lifecycle, deterministic source lint, canonical source resolution for claim evidence and freshness, and session tracking for source writes.
+
+Added read-only legacy migration assessment and explicit idempotent apply. Migrated `SRC-20260613-project-design` without changing its raw bytes or Markdown summary; the post-migration assessment reports no debt.
+
+Updated `agent-rules.md`, `workflows/ingest.md`, `schemas/page-schemas.md`, `sources/README.md`, `scrinium-guide.md`, `projects/scrinium.md`, `index.md`, project documentation, and source compatibility guidance. Source provenance and fingerprints identify origin and exact bytes; they do not prove semantic correctness or claim truth.
+
+Verification: `GOTOOLCHAIN=go1.26.4 make verify` passed, `git diff --check` passed, Gograph precise build completed, and Gograph check reported no errors with only pre-existing complexity warnings.
+
+
+Maintenance note: the deterministic registry rebuild is now considered an observed maintenance action even when compare-before-write finds identical bytes. A regression test covers the no-op rebuild clearing the session obligation. Final `GOTOOLCHAIN=go1.26.4 make verify` and `git diff --check` passed.
+
+## [2026-08-21] maintenance | Complete v0.2 public knowledge interface
+- Objective: Expose canonical claims, evidence, validation, sources, and durable sessions through small generic MCP/CLI operations.
+- Pages touched: agent-rules.md, workflows/query.md, workflows/lint.md, projects/scrinium.md, index.md, drafts/architecture-overview-v0.2-final-2026-08-21.md, log.md
+- Outcome: Public schemas and trust/error presentation documented; protected architecture overview proposed through the governed draft workflow.
+- Follow-ups: Owner acceptance of the protected architecture draft; v0.3 scheduling, cleanup, and history-retention policy remain deferred.
+- Maintenance confirmation: indexed the governed final v0.2 architecture draft after its creation.
+- Verification follow-up: marked remaining v0.1 Markdown tools explicitly deprecated in MCP discovery; final make verify and Gograph review passed.
+## [2026-08-21] maintenance | Require Go 1.27 for Scrinium v0.2
+- Objective: Make Go 1.27 the supported development, CI, verification, and release baseline.
+- Pages touched: projects/scrinium.md, index.md, drafts/go-1.27-protected-governance-2026-08-21.md, log.md
+- Outcome: go.mod now requires Go 1.27.0; CI/release and analysis-tool versions are Go 1.27 compatible; protected legacy references have a governed update draft.
+- Validation: go version reported go1.27.0; go mod tidy, make verify, GoReleaser 2.17.1 config check, Go-1.27-built Gograph precise review/check, and git diff --check.
+- Follow-ups: Owner acceptance is required to apply the protected rules and architecture wording draft.
+
+## [2026-08-21] maintenance | Verify Go 1.27 supported baseline
+- Objective: Confirm Scrinium v0.2 development, CI, analysis, and release tooling under Go 1.27.
+- Pages touched: log.md
+- Outcome: Go 1.27.0 is the declared and verified baseline; the public MCP workflow fixture now keeps fake external validators hermetic when Gograph is installed.
+- Validation: go version; go mod tidy; focused MCP test repeated 10 times; make verify; GoReleaser 2.17.1 configuration check; Gograph precise build, review, and check; git diff --check pending final run.
+- Follow-ups: Owner acceptance remains required for drafts/go-1.27-protected-governance-2026-08-21.md.
+## [2026-08-21] maintenance | Release Scrinium v0.2.0
+- Objective: Publish the evidence-backed v0.2 core and Go 1.27 baseline.
+- Pages touched: log.md
+- Outcome: Release candidate 0.2.0 is ready with generic claim/source/session APIs, optional Rulefloor and Gograph validators, deterministic local storage, CAS, and durable sessions.
+- Validation: Go 1.27.0 make verify passed; GoReleaser 2.17.1 configuration check passed; Gograph 1.5.8 precise build, review, and check completed with zero errors; public capabilities JSON smoke passed; git diff --check passed.
+- Follow-ups: Protected architecture and Go 1.27 governance drafts remain pending owner acceptance; local Rulefloor smoke remains unavailable until PATH resolves a JSON-contract-capable release.

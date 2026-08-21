@@ -6,6 +6,7 @@
 
 .gograph/
 .codex/
+/llm-wiki/.scrinium/
 AGENTS.md
 raw/
 .DS_Store

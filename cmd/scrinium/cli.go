@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"scrinium/internal/publicapi"
 )
 
 const (
@@ -27,23 +29,49 @@ func IsCLISubcommand(args []string) bool {
 		return false
 	}
 	known := map[string]bool{
-		"enforce-agents":   true,
-		"version":          true,
-		"capabilities":     true,
-		"setup_llm_wiki":   true,
-		"begin_session":    true,
-		"session_status":   true,
-		"finish_session":   true,
-		"lint_llm_wiki":    true,
-		"adopt_llm_wiki":   true,
-		"register_source":  true,
-		"create_page":      true,
-		"move_page":        true,
-		"archive_page":     true,
-		"read_wiki_page":   true,
-		"update_wiki_page": true,
-		"create_draft":     true,
-		"append_log":       true,
+		"enforce-agents":              true,
+		"version":                     true,
+		"capabilities":                true,
+		"claim_create":                true,
+		"claim_get":                   true,
+		"claim_list":                  true,
+		"claim_update":                true,
+		"claim_add_evidence":          true,
+		"claim_set_validation_policy": true,
+		"claim_validate":              true,
+		"claim_supersede":             true,
+		"claim_withdraw":              true,
+		"claim_lint":                  true,
+		"source_register":             true,
+		"source_get":                  true,
+		"source_list":                 true,
+		"source_refresh":              true,
+		"source_migration_status":     true,
+		"session_begin":               true,
+		"session_continue":            true,
+		"session_finish":              true,
+		"session_abandon":             true,
+		"session_list":                true,
+		"setup_llm_wiki":              true,
+		"begin_session":               true,
+		"continue_session":            true,
+		"session_status":              true,
+		"finish_session":              true,
+		"abandon_session":             true,
+		"list_active_sessions":        true,
+		"lint_llm_wiki":               true,
+		"adopt_llm_wiki":              true,
+		"assess_source_migration":     true,
+		"apply_source_migration":      true,
+		"rebuild_source_registry":     true,
+		"register_source":             true,
+		"create_page":                 true,
+		"move_page":                   true,
+		"archive_page":                true,
+		"read_wiki_page":              true,
+		"update_wiki_page":            true,
+		"create_draft":                true,
+		"append_log":                  true,
 	}
 	return known[args[0]]
 }
@@ -78,11 +106,37 @@ func RunCLI(args []string, stdout, stderr io.Writer) int {
 			if errors.Is(err, flag.ErrHelp) {
 				return 0
 			}
+			var reported *reportedCLIError
+			if errors.As(err, &reported) {
+				return 1
+			}
+			if publicCLICommand(args[0]) && requestedJSON(args[1:]) {
+				encoded, encodeErr := json.Marshal(publicapi.PublicError{
+					SchemaVersion: publicapi.ErrorSchema, Code: "invalid_input", Message: err.Error(), Operation: args[0],
+				})
+				if encodeErr == nil {
+					fmt.Fprintln(stdout, string(encoded))
+					return 1
+				}
+			}
 			fmt.Fprintf(stderr, "scrinium %s: %v\n", args[0], err)
 			return 1
 		}
 		return 0
 	}
+}
+
+type reportedCLIError struct{}
+
+func (*reportedCLIError) Error() string { return "machine-readable error written" }
+
+func requestedJSON(args []string) bool {
+	for _, arg := range args {
+		if arg == "--json" || arg == "--json=true" {
+			return true
+		}
+	}
+	return false
 }
 
 type enforceAgentsOptions struct {
@@ -282,31 +336,31 @@ func claudeInstructionsContent(agentList, configPath string) string {
 }
 
 func sharedEnforcementBlock(audience, agentList, configPath string) string {
-	return fmt.Sprintf(`# Scrinium Enforcement
+	return fmt.Sprintf(`# Scrinium Knowledge Workflow
 
 Audience: %s.
 Generated for agents: %s.
 
-Scrinium is the project memory and governance server. Treat `+"`llm-wiki/`"+` as the source of truth for durable project context.
+Scrinium is an evidence-backed project knowledge and write-governance service. Canonical claims and sources record provenance and bounded validation; stored Markdown is not automatically true.
 
 ## Required Loop
 
 1. Start Scrinium MCP with command `+"`scrinium`"+` and args `+"`%s`"+`.
 2. After any harness or plugin bootstrap instructions are loaded, call Scrinium `+"`capabilities`"+` before project work or wiki writes.
-3. Call `+"`begin_session`"+` before project changes.
+3. Call `+"`begin_session`"+` before project changes and retain its durable session ID.
 4. Read `+"`index.md`"+` and `+"`agent-rules.md`"+` with `+"`read_wiki_page`"+`.
 5. Read any relevant workflow pages before specialized wiki work.
 6. Make project changes.
-7. Update `+"`llm-wiki`"+` through Scrinium tools so durable context stays current.
+7. Use claim and source operations for canonical knowledge state; use deprecated page tools only for human documentation and compatibility.
 8. Update `+"`log.md`"+`, `+"`index.md`"+`, and `+"`source-registry.md`"+` when Scrinium reports they are required.
-9. Call `+"`session_status`"+`.
-10. Call `+"`finish_session`"+` before reporting completion.
+9. Call `+"`session_status`"+` for that session.
+10. Call `+"`finish_session`"+` for that session before reporting completion.
 
 Do not report completion while `+"`finish_session`"+` fails. Satisfy its pending maintenance checklist first.
 
 ## Boundaries
 
-Scrinium can enforce wiki writes made through its MCP tools. It cannot see arbitrary direct filesystem edits unless the agent records them back into the wiki before finishing.
+Scrinium sessions are durable tracked work-session checklists. They record only operations Scrinium observes and are not authentication, a security boundary, or proof of agent compliance. External validation is scoped to its recorded binding and fingerprints; it does not establish global correctness.
 `, audience, agentList, configPath)
 }
 
@@ -357,11 +411,16 @@ func runMCPToolAsCLI(toolName string, args []string, stdout io.Writer) error {
 	fs.StringVar(&repo, "repo", ".", "repository root containing scrinium.json")
 
 	// Declare flags for all known MCP parameters
-	var path, content, logFile, sourceID, title, rawPath, trustLevel, from, to, archivePath, reason, name string
+	var sessionID, path, content, logFile, sourceID, claimID, title, rawPath, trustLevel, from, to, archivePath, reason, name string
+	var inputPath, inputJSON string
+	var machineJSON bool
+	fs.StringVar(&sessionID, "session", "", "explicit durable session ID")
+	fs.StringVar(&claimID, "claim-id", "", "immutable claim ID")
 	fs.StringVar(&path, "path", "", "wiki page path")
 	fs.StringVar(&content, "content", "", "content to write or append")
 	fs.StringVar(&logFile, "log_file", "", "log file path")
 	fs.StringVar(&sourceID, "source_id", "", "stable source ID (SRC-YYYYMMDD-slug)")
+	fs.StringVar(&sourceID, "source-id", "", "immutable source ID")
 	fs.StringVar(&title, "title", "", "source title")
 	fs.StringVar(&rawPath, "raw_path", "", "original raw source path")
 	fs.StringVar(&trustLevel, "trust_level", "", "trust level (trusted-project, trusted-owner, external, unknown)")
@@ -370,6 +429,9 @@ func runMCPToolAsCLI(toolName string, args []string, stdout io.Writer) error {
 	fs.StringVar(&archivePath, "archive_path", "", "optional archive path")
 	fs.StringVar(&reason, "reason", "", "optional reason")
 	fs.StringVar(&name, "name", "", "draft filename")
+	fs.StringVar(&inputPath, "input", "", "strict versioned JSON input file for complex operations")
+	fs.StringVar(&inputJSON, "input-json", "", "strict versioned inline JSON for complex operations")
+	fs.BoolVar(&machineJSON, "json", false, "write exactly one versioned JSON document to stdout")
 
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -377,16 +439,35 @@ func runMCPToolAsCLI(toolName string, args []string, stdout io.Writer) error {
 	if fs.NArg() != 0 {
 		return fmt.Errorf("unexpected positional arguments: %s", strings.Join(fs.Args(), " "))
 	}
+	if directCLIRequiresSession(toolName) && strings.TrimSpace(sessionID) == "" {
+		return fmt.Errorf("requires --session SESSION-ID")
+	}
 
 	// Build parameters map based on what flags were set
 	params := make(map[string]any)
 	visit := func(f *flag.Flag) {
-		if f.Name == "repo" {
+		if f.Name == "repo" || f.Name == "session" || f.Name == "input" || f.Name == "input-json" || f.Name == "json" {
 			return
 		}
-		params[f.Name] = f.Value.String()
+		key := f.Name
+		if key == "claim-id" {
+			key = "claim_id"
+		} else if key == "source-id" {
+			key = "source_id"
+		}
+		params[key] = f.Value.String()
 	}
 	fs.Visit(visit)
+	if sessionID != "" {
+		params["session_id"] = sessionID
+	}
+	input, err := loadCLIInput(toolName, inputPath, inputJSON)
+	if err != nil {
+		return err
+	}
+	if input != nil {
+		params["input"] = input
+	}
 
 	absRepo, err := filepath.Abs(repo)
 	if err != nil {
@@ -434,7 +515,32 @@ func runMCPToolAsCLI(toolName string, args []string, stdout io.Writer) error {
 
 	text, _ := contentArr[0]["text"].(string)
 	if isError {
+		if machineJSON && publicCLICommand(toolName) && json.Valid([]byte(text)) {
+			fmt.Fprintln(stdout, text)
+			return &reportedCLIError{}
+		}
 		return fmt.Errorf("%s", text)
+	}
+	if machineJSON {
+		if !publicCLICommand(toolName) {
+			return fmt.Errorf("--json is supported only by the public claim, source, validation, lint, session, and capabilities operations")
+		}
+		if err := publicapi.ValidateMachineDocument([]byte(text)); err != nil {
+			return err
+		}
+		fmt.Fprintln(stdout, text)
+		return nil
+	}
+	// session_status predates the v0.2 public surface and historically returned
+	// pretty JSON. Preserve that human-mode compatibility; --json still emits
+	// the stable versioned machine document without reformatting.
+	if publicCLICommand(toolName) && toolName != "session_status" {
+		summary, err := publicapi.HumanSummary([]byte(text))
+		if err != nil {
+			return fmt.Errorf("render public result: %w", err)
+		}
+		fmt.Fprintln(stdout, summary)
+		return nil
 	}
 
 	// If the text is JSON, let's pretty-print it. Otherwise, print directly.
@@ -445,4 +551,97 @@ func runMCPToolAsCLI(toolName string, args []string, stdout io.Writer) error {
 		fmt.Fprintln(stdout, text)
 	}
 	return nil
+}
+
+func publicCLICommand(name string) bool {
+	return name == "capabilities" || name == "session_status" || strings.HasPrefix(name, "claim_") || strings.HasPrefix(name, "source_") || strings.HasPrefix(name, "session_")
+}
+
+func loadCLIInput(toolName, inputPath, inline string) (any, error) {
+	expected, target := publicInputTarget(toolName)
+	if expected == "" {
+		if inputPath != "" || inline != "" {
+			return nil, fmt.Errorf("%s does not accept --input or --input-json", toolName)
+		}
+		return nil, nil
+	}
+	if (inputPath == "") == (inline == "") {
+		return nil, fmt.Errorf("%s requires exactly one of --input FILE or --input-json JSON", toolName)
+	}
+	var data []byte
+	var err error
+	if inputPath != "" {
+		data, err = readCLIInputFile(inputPath)
+	} else {
+		data = []byte(inline)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := publicapi.DecodeJSON(data, expected, target); err != nil {
+		return nil, err
+	}
+	return target, nil
+}
+
+func publicInputTarget(toolName string) (string, publicapi.VersionedInput) {
+	switch toolName {
+	case "claim_create":
+		return publicapi.ClaimCreateSchema, &publicapi.ClaimCreateInput{}
+	case "claim_update":
+		return publicapi.ClaimUpdateSchema, &publicapi.ClaimUpdateInput{}
+	case "claim_add_evidence":
+		return publicapi.ClaimEvidenceSchema, &publicapi.ClaimEvidenceInput{}
+	case "claim_set_validation_policy":
+		return publicapi.ClaimPolicySchema, &publicapi.ClaimPolicyInput{}
+	case "claim_validate":
+		return publicapi.ClaimValidationSchema, &publicapi.ClaimValidationInput{}
+	case "claim_supersede":
+		return publicapi.ClaimSupersedeSchema, &publicapi.ClaimSupersedeInput{}
+	case "claim_withdraw":
+		return publicapi.ClaimWithdrawSchema, &publicapi.ClaimWithdrawInput{}
+	case "source_register":
+		return publicapi.SourceRegisterSchema, &publicapi.SourceRegisterInput{}
+	case "source_refresh":
+		return publicapi.SourceRefreshSchema, &publicapi.SourceRefreshInput{}
+	default:
+		return "", nil
+	}
+}
+
+func readCLIInputFile(path string) ([]byte, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, fmt.Errorf("inspect input file: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("input must be a regular non-symlink file")
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open input file: %w", err)
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, publicapi.MaxInputBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("read input file: %w", err)
+	}
+	if len(data) > publicapi.MaxInputBytes {
+		return nil, fmt.Errorf("input exceeds %d bytes", publicapi.MaxInputBytes)
+	}
+	return data, nil
+}
+
+func directCLIRequiresSession(toolName string) bool {
+	switch toolName {
+	case "continue_session", "session_status", "finish_session", "abandon_session",
+		"session_continue", "session_finish", "session_abandon",
+		"claim_create", "claim_update", "claim_add_evidence", "claim_set_validation_policy", "claim_validate", "claim_supersede", "claim_withdraw",
+		"source_register", "source_refresh",
+		"register_source", "create_page", "move_page", "archive_page",
+		"update_wiki_page", "create_draft", "append_log", "apply_source_migration", "rebuild_source_registry":
+		return true
+	default:
+		return false
+	}
 }

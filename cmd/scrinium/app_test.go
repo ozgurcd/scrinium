@@ -3,6 +3,7 @@ package scrinium
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -94,7 +95,7 @@ func TestRunCLIEnforceAgentsWritesManagedBlocks(t *testing.T) {
 	}
 	if !strings.Contains(agents, "<!-- BEGIN SCRINIUM ENFORCEMENT -->") ||
 		!strings.Contains(agents, "After any harness or plugin bootstrap instructions are loaded, call Scrinium `capabilities` before project work or wiki writes.") ||
-		!strings.Contains(agents, "Call `finish_session` before reporting completion.") {
+		!strings.Contains(agents, "Call `finish_session` for that session before reporting completion.") {
 		t.Fatalf("AGENTS.md should contain Scrinium enforcement block, got:\n%s", agents)
 	}
 
@@ -351,7 +352,7 @@ func TestToolsListIncludesSessionTools(t *testing.T) {
 		found[name] = true
 	}
 
-	for _, name := range []string{"begin_session", "session_status", "finish_session"} {
+	for _, name := range []string{"begin_session", "continue_session", "session_status", "finish_session", "abandon_session", "list_active_sessions"} {
 		if !found[name] {
 			t.Fatalf("tools/list should include %s", name)
 		}
@@ -503,6 +504,13 @@ func TestRegisterSourceCreatesSummaryAndRegistryEntry(t *testing.T) {
 	app, cleanup := newTestApp(t, nil)
 	defer cleanup()
 	prepareSessionForWrites(t, app, "workflows/ingest.md")
+	rawPath := filepath.Join(filepath.Dir(app.wikiRoot), "raw/inbox/REAL_WORLD.md")
+	if err := os.MkdirAll(filepath.Dir(rawPath), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(rawPath, []byte("source bytes\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := app.handleRegisterSource(map[string]any{
 		"source_id":     "SRC-20260614-real-world",
@@ -739,13 +747,35 @@ func TestMCPToolCall_SessionLifecycleTools(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, raw := range []json.RawMessage{
-		json.RawMessage(`{"name":"begin_session","arguments":{}}`),
-		json.RawMessage(`{"name":"session_status","arguments":{}}`),
-	} {
-		if _, err := app.handleToolCall(raw); err != nil {
-			t.Fatalf("tool call should succeed: %v", err)
-		}
+	begin, err := app.handleToolCall(json.RawMessage(`{"name":"begin_session","arguments":{}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var status map[string]any
+	if err := json.Unmarshal([]byte(toolText(t, begin)), &status); err != nil {
+		t.Fatal(err)
+	}
+	sessionID, _ := status["session_id"].(string)
+	if sessionID == "" {
+		t.Fatalf("begin_session did not return an ID: %#v", status)
+	}
+	if _, err := app.handleToolCall(json.RawMessage(`{"name":"read_wiki_page","arguments":{"path":"index.md"}}`)); err != nil {
+		t.Fatalf("MCP connection did not retain current session: %v", err)
+	}
+	restarted, err := NewApp(filepath.Join(filepath.Dir(app.wikiRoot), "config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	continueRaw := json.RawMessage(fmt.Sprintf(`{"name":"continue_session","arguments":{"session_id":%q}}`, sessionID))
+	if _, err := restarted.handleToolCall(continueRaw); err != nil {
+		t.Fatalf("restarted MCP adapter could not continue durable session: %v", err)
+	}
+	result, err := restarted.handleToolCall(json.RawMessage(`{"name":"session_status","arguments":{}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(toolText(t, result), "index.md") {
+		t.Fatalf("restarted MCP adapter lost tracked reads: %s", toolText(t, result))
 	}
 }
 

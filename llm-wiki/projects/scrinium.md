@@ -1,52 +1,30 @@
----
-title: Scrinium
-type: project
-status: current
-updated: 2026-06-14
-sources:
-  - SRC-20260613-project-design
----
-
 # Scrinium
 
-## Goal
+Status: v0.2 core implementation complete; protected architecture overview acceptance pending owner review.
 
-Scrinium is a CLI-based Model Context Protocol server that manages a local `llm-wiki` directory for AI coding agents. It provides governed access to persistent project context so agents can read current rules and update working knowledge without silently corrupting foundational documents.
+Scrinium is a local, repository-owned evidence-backed knowledge system for coding agents. It records claims, provenance, validation policy/history, and derived assessment/freshness without treating storage as truth.
 
-## Current Status
+## Supported Toolchain
 
-The project is implemented as a Go MCP server using JSON-RPC over stdio. It is configured through `scrinium.json`, which sets the wiki root and protected file patterns. Current wiki operation follows the LLM Wiki pattern: immutable raw sources, maintained wiki pages, and agent schema through `AGENTS.md` plus workflow/schema/security pages. Release versioning uses SemVer tracked by `.bumpversion.cfg`; `make build` embeds the Makefile `VERSION` into the binary.
+Scrinium v0.2 requires Go 1.27 or newer. The supported verification and release baseline is the Go 1.27 toolchain declared in `go.mod`. CI uses Staticcheck 0.8.0, govulncheck 1.7.0, setup-go v7, and GoReleaser 2.17.1.
 
-The active MCP tool surface includes `capabilities`, `setup_llm_wiki`, `begin_session`, `session_status`, `finish_session`, `read_wiki_page`, `update_wiki_page`, `create_draft`, `append_log`, `lint_llm_wiki`, `adopt_llm_wiki`, `register_source`, `create_page`, `move_page`, and `archive_page`. `setup_llm_wiki` creates the standard LLM Wiki skeleton without overwriting existing pages. Session tools enforce the LLM Wiki loop by requiring startup reads before writes and required maintenance before completion. Adoption tools support real-world manual wiki onboarding, source registration, safe page creation, renames, and archive-over-delete behavior. The binary also has a non-MCP `enforce-agents` CLI subcommand for manually creating or refreshing Scrinium-managed enforcement blocks in `AGENTS.md`, `CLAUDE.md`, and `docs/scrinium-agent-enforcement.md`.
+## Implemented v0.2 core
 
-## Active Decisions
+- deterministic one-file-per-claim JSON and typed evidence;
+- generic validator orchestration;
+- optional Rulefloor and Gograph subprocess adapters;
+- cross-process claim/source CAS and locks;
+- durable cross-process session checklists;
+- canonical one-file-per-source provenance JSON;
+- generic public MCP/CLI claim, source, validation, lint, and session operations;
+- strict versioned public JSON inputs/results/errors;
+- deterministic claim lint separated from legacy heuristic review;
+- deprecated v0.1 page/wiki compatibility tools retained.
 
-- Use Go and prefer standard-library filesystem operations where possible. Source: `SRC-20260613-project-design`.
-- Use `scrinium.json` for policy-based write governance. Source: `SRC-20260613-project-design`.
-- Protect foundational documents and route proposed changes through drafts. Source: `SRC-20260613-project-design`.
-- Do not protect `agent-rules.md` in the default project config; it is part of the editable agent schema.
-- Enforce the LLM Wiki read-before-write and update-after-write cycle in Scrinium itself through tracked sessions.
-- Provide `scrinium enforce-agents` as a manual CLI path that does not start MCP stdio mode and preserves user content outside Scrinium-managed blocks.
-- Embed the Makefile `VERSION` at compile time and expose it through `scrinium version`, MCP initialize metadata, and the `capabilities` tool.
-- Use read-only lint/adoption reports for existing wiki onboarding before making normalizing changes.
-- Archive obsolete pages instead of deleting them; archived content is historical and must be removed from active working context.
-- Use semantic rejection messages for blocked writes so agents can self-correct. Source: `SRC-20260613-project-design`.
-- Use `llm-wiki/log.md` as the canonical chronological LLM Wiki log. Source: `AGENTS.md` and `index.md`.
+## Trust limits
 
-## Next Actions
+Rulefloor static and all Gograph validation are observation-grade. Supported authenticated Rulefloor execution may satisfy verification-grade bindings. Gograph proves selected Go structural predicates only. Scrinium cannot prove global correctness, agent compliance, semantic contradiction absence, or stale prose.
 
-- Keep source-derived project facts tied to source IDs.
-- If protected architecture pages need updates from this source, propose drafts rather than direct edits.
-- Use `workflows/lint.md` for future periodic health checks.
+## Deferred
 
-## Risks or Blockers
-
-- `SRC-20260613-project-design` includes stale agent-rule references to `~/.gemini/GEMINI.md`, `docs/ARCHITECTURAL_GUIDELINES.md`, and `.agent/rules/`. Active instructions come from `AGENTS.md` and governed wiki pages.
-- The source says CRUD, but current governance does not expose unrestricted delete semantics.
-
-## Source or Decision References
-
-- `sources/SRC-20260613-project-design.md`
-- `source-registry.md`
-- `concepts/policy-based-access-control.md`
-- `concepts/semantic-rejection.md`
+Background validation scheduling, automatic stale-session cleanup, validation-history retention/compaction, and compatibility removal policy are deferred to v0.3.

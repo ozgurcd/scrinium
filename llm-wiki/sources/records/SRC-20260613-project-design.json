@@ -1,0 +1,26 @@
+{
+  "schema_version": "scrinium.source/v1",
+  "id": "SRC-20260613-project-design",
+  "title": "Project Design: LLM-Wiki MCP Server",
+  "source_type": "project_document",
+  "origin": {
+    "kind": "owner",
+    "trust": "trusted-owner"
+  },
+  "raw_path": "raw/inbox/PROJECT_DESIGN.md",
+  "raw_fingerprint": "sha256:1a76a50f7fdcc6a2176da47472dd60f2a6d62b48d0639ce7c4486cc28ef41d59",
+  "received_date": "2026-06-13",
+  "ingest_date": "2026-06-13",
+  "status": "current",
+  "derived_claims": [],
+  "derived_pages": [
+    "concepts/policy-based-access-control.md",
+    "concepts/semantic-rejection.md",
+    "projects/scrinium.md"
+  ],
+  "provenance_notes": [
+    "Contains stale references to `~/.gemini/GEMINI.md`, `docs/ARCHITECTURAL_GUIDELINES.md`, and `.agent/rules/`; active guidance remains `AGENTS.md` plus governed `llm-wiki` pages."
+  ],
+  "created_at": "2026-08-21T14:42:47.787513Z",
+  "updated_at": "2026-08-21T14:42:47.787513Z"
+}
