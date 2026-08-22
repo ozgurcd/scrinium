@@ -363,3 +363,12 @@ Maintenance note: the deterministic registry rebuild is now considered an observ
 - Docs: v0.2-public-api.md "Claim queries" section; capabilities json_schemas gains claim_query; claim_list tool description names the filters.
 - Pages touched: log.md.
 - Validation: make verify.
+
+## 2026-08-22 — Release stamp: ordering fixed, published-stamp assert added
+
+- Owner-spotted in the v0.4.0 transcript: `make release BUMP=minor` printed a 0.3.1 ldflags build line while cutting v0.4.0. MEASURED first: the published v0.4.0 darwin binary RUN directly prints "scrinium 0.4.0" — goreleaser stamps from the tag, so this was an ORDERING/HYGIENE defect (verify's pre-bump scratch build), not a shipped one.
+- The deeper hole: every closeout read `go version -m`, which reports the MODULE version derived from the TAG — it would read v0.4.0 even with a broken ldflags stamp. Nothing had ever verified GoReleaser's injected string on a published artifact.
+- Fixes: (1) release rebuilds AFTER the bump and asserts `./scrinium version` equals the bumped Makefile VERSION (verify's build stays pre-bump BY DESIGN: a failing verify after the bump would leave a dirty tree the porcelain guard then refuses — recorded in the recipe comment). (2) A second goreleaser per-build post hook runs the HOST-runnable binary's own `version` subcommand and requires "scrinium {{ .Version }}" — cross-compiled targets skip (cannot exec on the runner); the ldflags line is shared, so one platform's stamp proves the template for all four.
+- Proofs on a throwaway clone: correct stamp → build green, binary prints the snapshot version; sabotaged ldflags (9.9.9-WRONG) → build FAILS pre-archive with 'STAMP FAIL — … prints "scrinium 9.9.9-WRONG", want "scrinium 0.4.0-SNAPSHOT-…"'.
+- Pages touched: log.md.
+- Validation: make verify; both throwaway proofs.

@@ -97,7 +97,19 @@ release: check-bump verify
 		exit 1; \
 	fi
 	bump2version $(BUMP)
+	@# Rebuild AFTER the bump so ./$(BINARY_NAME) and the Makefile agree:
+	@# verify's build runs PRE-bump by design (a failing verify after the
+	@# bump would leave a dirty tree the porcelain guard then refuses), so
+	@# its scratch binary carries the PREVIOUS version — the v0.4.0 cut
+	@# printed a 0.3.1 ldflags line for exactly this reason. The local
+	@# stamp is asserted here; the PUBLISHED stamp is asserted by the
+	@# goreleaser per-build post hook.
 	@NEW_VERSION=$$(grep "^VERSION =" Makefile | cut -d' ' -f3); \
+	$(MAKE) --no-print-directory build; \
+	if ! ./$(BINARY_NAME) version | grep -qx "scrinium $$NEW_VERSION"; then \
+		echo "release: REFUSED — rebuilt binary prints '$$(./$(BINARY_NAME) version)', want 'scrinium $$NEW_VERSION'"; \
+		exit 1; \
+	fi; \
 	git add Makefile .bumpversion.cfg; \
 	git commit -m "Release v$$NEW_VERSION"; \
 	git tag v$$NEW_VERSION; \

@@ -29,6 +29,20 @@ builds:
             sh -c 'go version -m "{{ .Path }}" | grep -q "vcs.modified=false"
             || { echo "PROVENANCE FAIL — {{ .Path }} stamps a modified tree";
             go version -m "{{ .Path }}" | grep vcs; exit 1; }'
+        # Stamp assert: the binary's OWN `version` output must equal the
+        # release version. `go version -m` reads the MODULE version from
+        # the tag and would look right even with a broken ldflags stamp —
+        # nothing verified GoReleaser's injected string until this hook.
+        # Only the host-runnable build is executed (cross-compiled
+        # binaries cannot exec on the runner); the ldflags line is shared
+        # by every build, so one platform's stamp proves the template for
+        # all four.
+        - cmd: >-
+            sh -c 'if [ "$(go env GOOS)/$(go env GOARCH)" = "{{ .Os }}/{{ .Arch }}" ];
+            then got="$("{{ .Path }}" version)";
+            [ "$got" = "scrinium {{ .Version }}" ]
+            || { echo "STAMP FAIL — {{ .Path }} prints \"$got\", want \"scrinium {{ .Version }}\""; exit 1; };
+            fi'
 
 archives:
   - formats: [tar.gz]
