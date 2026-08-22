@@ -17,6 +17,7 @@ const (
 	ClaimWithdrawSchema      = "scrinium.claim-withdraw/v1"
 	ClaimResultSchema        = "scrinium.claim-result/v1"
 	ClaimListSchema          = "scrinium.claim-list/v1"
+	ClaimQuerySchema         = "scrinium.claim-query/v1"
 	ClaimValidationRunSchema = "scrinium.claim-validation-run/v1"
 	ClaimLintSchema          = "scrinium.claim-lint/v1"
 	SourceRegisterSchema     = "scrinium.source-register/v1"
@@ -69,6 +70,25 @@ type ClaimEvidenceInput struct {
 }
 
 func (i *ClaimEvidenceInput) SchemaVersionValue() string { return i.SchemaVersion }
+
+// ClaimQueryInput is the OPTIONAL claim_list filter document. Every field
+// is optional and filters are AND-composed; a claim_list call without an
+// input behaves exactly as before (list all). A NEW input schema rather
+// than an extension of claim-list/v1 because claim-list/v1 is a RESULT
+// schema: inputs and results are versioned separately throughout this
+// API, and the result shape is unchanged by filtering.
+type ClaimQueryInput struct {
+	SchemaVersion    string `json:"schema_version"`
+	ValidatorID      string `json:"validator_id,omitempty"`
+	BindingReference string `json:"binding_reference,omitempty"`
+	Target           string `json:"target,omitempty"`
+	Lifecycle        string `json:"lifecycle,omitempty"`
+	Assessment       string `json:"assessment,omitempty"`
+	Freshness        string `json:"freshness,omitempty"`
+	LocatorPrefix    string `json:"locator_prefix,omitempty"`
+}
+
+func (i *ClaimQueryInput) SchemaVersionValue() string { return i.SchemaVersion }
 
 type ClaimPolicyInput struct {
 	SchemaVersion    string                      `json:"schema_version"`

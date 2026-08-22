@@ -158,6 +158,111 @@ func (s *Service) ListClaims(ctx context.Context, at time.Time) ([]ClaimView, er
 	return views, nil
 }
 
+// ClaimQuery is the optional claim_list filter set. Every field is
+// optional; set fields are AND-composed. The zero value matches every
+// claim, so QueryClaims(zero) is exactly ListClaims.
+type ClaimQuery struct {
+	ValidatorID      string
+	BindingReference string
+	Target           string
+	Lifecycle        string
+	Assessment       string
+	Freshness        string
+	LocatorPrefix    string
+}
+
+// QueryClaims lists claims matching every set filter, in stable claim-ID
+// order (the store already sorts). It scans the claims directory — no
+// index, no database; the work is bounded by claim count.
+func (s *Service) QueryClaims(ctx context.Context, at time.Time, query ClaimQuery) ([]ClaimView, error) {
+	if err := query.validate(); err != nil {
+		return nil, err
+	}
+	views, err := s.ListClaims(ctx, at)
+	if err != nil {
+		return nil, err
+	}
+	matched := make([]ClaimView, 0, len(views))
+	for _, view := range views {
+		if query.matches(view) {
+			matched = append(matched, view)
+		}
+	}
+	return matched, nil
+}
+
+// validate refuses unknown enum values loudly: a filter value that can
+// never match anything must error, never silently return nothing.
+func (q ClaimQuery) validate() error {
+	switch knowledge.LifecycleState(q.Lifecycle) {
+	case "", knowledge.LifecycleActive, knowledge.LifecycleSuperseded, knowledge.LifecycleWithdrawn:
+	default:
+		return appError(ErrorInvalid, fmt.Sprintf("unknown lifecycle filter %q: must be active, superseded, or withdrawn", q.Lifecycle), nil)
+	}
+	switch knowledge.Assessment(q.Assessment) {
+	case "", knowledge.AssessmentAsserted, knowledge.AssessmentSourced, knowledge.AssessmentObserved, knowledge.AssessmentVerified, knowledge.AssessmentChallenged:
+	default:
+		return appError(ErrorInvalid, fmt.Sprintf("unknown assessment filter %q: must be asserted, sourced, observed, verified, or challenged", q.Assessment), nil)
+	}
+	switch knowledge.Freshness(q.Freshness) {
+	case "", knowledge.FreshnessCurrent, knowledge.FreshnessStale, knowledge.FreshnessUnknown:
+	default:
+		return appError(ErrorInvalid, fmt.Sprintf("unknown freshness filter %q: must be current, stale, or unknown", q.Freshness), nil)
+	}
+	return nil
+}
+
+func (q ClaimQuery) matches(view ClaimView) bool {
+	if q.Lifecycle != "" && view.State.Lifecycle != knowledge.LifecycleState(q.Lifecycle) {
+		return false
+	}
+	if q.Assessment != "" && view.State.Assessment != knowledge.Assessment(q.Assessment) {
+		return false
+	}
+	if q.Freshness != "" && view.State.Freshness != knowledge.Freshness(q.Freshness) {
+		return false
+	}
+	if q.ValidatorID != "" || q.BindingReference != "" || q.Target != "" {
+		if !q.matchesBinding(view) {
+			return false
+		}
+	}
+	if q.LocatorPrefix != "" && !q.matchesLocator(view) {
+		return false
+	}
+	return true
+}
+
+// matchesBinding requires ONE binding satisfying every set binding-level
+// filter together, not one binding each.
+func (q ClaimQuery) matchesBinding(view ClaimView) bool {
+	if view.Claim.ValidationPolicy == nil {
+		return false
+	}
+	for _, binding := range view.Claim.ValidationPolicy.Bindings {
+		if q.ValidatorID != "" && binding.ValidatorID != q.ValidatorID {
+			continue
+		}
+		if q.BindingReference != "" && binding.Reference != q.BindingReference {
+			continue
+		}
+		if q.Target != "" && binding.Parameters["target"] != q.Target {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func (q ClaimQuery) matchesLocator(view ClaimView) bool {
+	for _, evidence := range view.Claim.Evidence {
+		if strings.HasPrefix(evidence.Locator, q.LocatorPrefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // UpdateClaim permits only explicitly non-material subject/statement edits.
 func (s *Service) UpdateClaim(ctx context.Context, req UpdateClaimRequest) (ClaimView, error) {
 	if !req.MeaningUnchanged {

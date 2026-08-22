@@ -2,6 +2,7 @@ package knowledge
 
 import (
 	"fmt"
+	"go/token"
 	"regexp"
 	"sort"
 	"strings"
@@ -35,6 +36,34 @@ func invalid(code, path, format string, args ...any) error {
 // ValidSemanticID reports whether an ID is safe, uppercase, and human-readable.
 func ValidSemanticID(id string) bool {
 	return len(id) >= 3 && len(id) <= 128 && semanticIDPattern.MatchString(id)
+}
+
+// ValidSymbolLocator reports whether a symbol_reference evidence locator
+// carries the package-qualified symbol identity gograph emits:
+// symbol:<import/path>::<Identifier> or symbol:<import/path>::(Recv).Method.
+// A file path, a bare name, or anything ambiguous is refused.
+func ValidSymbolLocator(locator string) bool {
+	value, found := strings.CutPrefix(locator, "symbol:")
+	if !found || len(value) > 512 {
+		return false
+	}
+	packagePath, declaration, split := strings.Cut(value, "::")
+	if !split || strings.Contains(declaration, "::") {
+		return false
+	}
+	if packagePath == "" || strings.HasPrefix(packagePath, "/") || strings.HasPrefix(packagePath, ".") ||
+		strings.Contains(packagePath, "..") || strings.ContainsAny(packagePath, `\ `) {
+		return false
+	}
+	if token.IsIdentifier(declaration) {
+		return true
+	}
+	receiver, method, dotted := strings.Cut(declaration, ").")
+	if !dotted || !strings.HasPrefix(receiver, "(") {
+		return false
+	}
+	receiver = strings.TrimPrefix(strings.TrimPrefix(receiver, "("), "*")
+	return token.IsIdentifier(receiver) && token.IsIdentifier(method)
 }
 
 // Validate checks one complete claim aggregate without resolving other claims.
@@ -148,9 +177,13 @@ func (e Evidence) validate(path string) error {
 	}
 	switch e.Kind {
 	case EvidenceOwnerAssertion, EvidenceHumanAssertion, EvidenceDecision, EvidenceExternalSource,
-		EvidenceRepositoryReference, EvidenceManualVerification, EvidenceValidatorObservation, EvidenceValidatorProof:
+		EvidenceRepositoryReference, EvidenceSymbolReference, EvidenceManualVerification, EvidenceValidatorObservation, EvidenceValidatorProof:
 	default:
 		return invalid("invalid_enum", path+".kind", "invalid evidence kind %q", e.Kind)
+	}
+	if e.Kind == EvidenceSymbolReference && !ValidSymbolLocator(e.Locator) {
+		return invalid("malformed_evidence", path+".locator",
+			"symbol_reference locator must be symbol:<import/path>::<Identifier> — a package-qualified symbol identity, never a file path")
 	}
 	switch e.Polarity {
 	case PolaritySupports, PolarityChallenges, PolarityContext:

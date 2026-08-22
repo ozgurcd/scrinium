@@ -50,11 +50,16 @@ const (
 type EvidenceKind string
 
 const (
-	EvidenceOwnerAssertion       EvidenceKind = "owner_assertion"
-	EvidenceHumanAssertion       EvidenceKind = "human_assertion"
-	EvidenceDecision             EvidenceKind = "decision"
-	EvidenceExternalSource       EvidenceKind = "external_source"
-	EvidenceRepositoryReference  EvidenceKind = "repository_reference"
+	EvidenceOwnerAssertion      EvidenceKind = "owner_assertion"
+	EvidenceHumanAssertion      EvidenceKind = "human_assertion"
+	EvidenceDecision            EvidenceKind = "decision"
+	EvidenceExternalSource      EvidenceKind = "external_source"
+	EvidenceRepositoryReference EvidenceKind = "repository_reference"
+	// EvidenceSymbolReference anchors a claim to a code SYMBOL rather
+	// than a file path, so claims become findable by what they
+	// reference. The locator carries the package-qualified identity
+	// gograph emits: symbol:<import/path>::<Identifier>.
+	EvidenceSymbolReference      EvidenceKind = "symbol_reference"
 	EvidenceManualVerification   EvidenceKind = "manual_verification"
 	EvidenceValidatorObservation EvidenceKind = "validator_observation"
 	EvidenceValidatorProof       EvidenceKind = "validator_proof"

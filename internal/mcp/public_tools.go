@@ -41,10 +41,25 @@ func (s *Server) callClaimTool(ctx context.Context, name string, args map[string
 		}
 		return jsonTextResult(publicapi.NewClaimResult(view))
 	case "claim_list":
-		if err := noParams(name, args); err != nil {
+		// COMPATIBILITY: a no-argument call lists everything, exactly as
+		// before filters existed. An optional scrinium.claim-query/v1
+		// input AND-composes filters; the result schema is unchanged.
+		if err := allowedArgs(args, "input"); err != nil {
 			return nil, err
 		}
-		views, err := s.app.ListClaims(ctx, time.Now().UTC())
+		query := appsvc.ClaimQuery{}
+		if _, hasInput := args["input"]; hasInput {
+			var input publicapi.ClaimQueryInput
+			if err := publicapi.DecodeValue(args["input"], publicapi.ClaimQuerySchema, &input); err != nil {
+				return nil, err
+			}
+			query = appsvc.ClaimQuery{
+				ValidatorID: input.ValidatorID, BindingReference: input.BindingReference, Target: input.Target,
+				Lifecycle: input.Lifecycle, Assessment: input.Assessment, Freshness: input.Freshness,
+				LocatorPrefix: input.LocatorPrefix,
+			}
+		}
+		views, err := s.app.QueryClaims(ctx, time.Now().UTC(), query)
 		if err != nil {
 			return nil, err
 		}

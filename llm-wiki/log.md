@@ -354,3 +354,12 @@ Maintenance note: the deterministic registry rebuild is now considered an observ
 - Same-class sweep (v.repositoryRoot across both adapters): exactly one bad site (the fixed one); the two root := v.repositoryRoot default-resolution lines are correct; rulefloor's analysis path already used the threaded root. Deliberately left: the gograph malformed-output branches still pass nil metadata — they fire before an authenticated document exists.
 - Pages touched: log.md.
 - Validation: make verify.
+
+## 2026-08-22 — Claim queries + symbol evidence (SCRINIUM-QUERY-1, both halves)
+
+- claim_list gains an optional scrinium.claim-query/v1 input: validator_id, binding_reference, target, lifecycle, assessment, freshness, locator_prefix — all optional, AND-composed, binding-level filters requiring ONE binding to satisfy them together. No-argument claim_list is byte-compatible with the pre-filter behavior (proven by a test comparing it against ListClaims, order included). Unknown enum values refuse by name (e.g. "unknown lifecycle filter \"zombie\"") instead of returning nothing. Results keep stable claim-ID order (the store already sorted) and the scrinium.claim-list/v1 RESULT schema; the query is a NEW INPUT schema because inputs and results version separately in this API. Directory scan only — no index file, no database, no embeddings.
+- New evidence kind symbol_reference: locator symbol:<import/path>::<Identifier> (or (Recv).Method), the package-qualified identity gograph emits; validated like repo: locators, refusing path-shaped or ambiguous values with a named message ("package-qualified symbol identity, never a file path"). Claims are now findable by the symbol they reference (locator_prefix "symbol:<pkg>").
+- Tests: per-filter include+exclude (watched failing against a deliberately unfiltered matches() before trusting: all 7 subtests + AND-composition red, no-filter compatibility green), AND-composition incl. cross-binding non-match, unknown-value refusals, symbol-locator refusals + acceptance.
+- Docs: v0.2-public-api.md "Claim queries" section; capabilities json_schemas gains claim_query; claim_list tool description names the filters.
+- Pages touched: log.md.
+- Validation: make verify.
