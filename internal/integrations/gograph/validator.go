@@ -150,7 +150,10 @@ func (v *Validator) Validate(ctx context.Context, req validation.Request) (knowl
 	}
 	authenticated, authenticityErr := v.authenticate(req, parsed, root, document, process.exitCode)
 	if authenticityErr != nil {
-		return v.cannotEvaluate(req, "gograph_inauthentic_output", authenticityErr.Error(), &process, nil), nil
+		// Carry the authenticated metadata (target name included): a
+		// refusal that cannot say WHICH target it refused is half a
+		// result. Mirrors the rulefloor adapter.
+		return v.cannotEvaluate(req, "gograph_inauthentic_output", authenticityErr.Error(), &process, authenticated.metadata), nil
 	}
 	result := v.result(req, knowledge.ValidationOutcome(document.Evaluation.Outcome), document.Evaluation.Reason, resultReason(parsed.document, document), authenticated.completedAt)
 	result.Metadata = authenticated.metadata
@@ -210,7 +213,7 @@ func (v *Validator) authenticate(req validation.Request, requested binding, root
 	if exitCode != expectedExit {
 		return authenticated, fmt.Errorf("gograph outcome %s is inconsistent with exit code %d", document.Evaluation.Outcome, exitCode)
 	}
-	if err := v.validateAnalysis(document); err != nil {
+	if err := v.validateAnalysis(root, document); err != nil {
 		return authenticated, err
 	}
 	if err := validateEvidence(document.Evidence, requested.document, document.Evaluation.Outcome); err != nil {
@@ -282,7 +285,7 @@ func (v *Validator) validateRepository(boundRoot string, repository repositoryDo
 	return nil
 }
 
-func (v *Validator) validateAnalysis(document validationDocument) error {
+func (v *Validator) validateAnalysis(root string, document validationDocument) error {
 	analysis := document.Analysis
 	evaluated := document.Evaluation.Outcome == "pass" || document.Evaluation.Outcome == "fail"
 	if analysis.GraphFingerprint != "" && !hex64Pattern.MatchString(analysis.GraphFingerprint) {
@@ -329,7 +332,7 @@ func (v *Validator) validateAnalysis(document validationDocument) error {
 		}
 	}
 	if analysis.GraphFingerprint != "" {
-		actual, err := v.currentGraphFingerprint()
+		actual, err := currentGraphFingerprint(root)
 		if err != nil || actual != analysis.GraphFingerprint {
 			return fmt.Errorf("gograph graph fingerprint does not match the persisted graph")
 		}
@@ -337,8 +340,14 @@ func (v *Validator) validateAnalysis(document validationDocument) error {
 	return nil
 }
 
-func (v *Validator) currentGraphFingerprint() (string, error) {
-	directory := filepath.Join(v.repositoryRoot, ".gograph")
+// currentGraphFingerprint reads the graph of the VALIDATION root — the
+// bound target's when the binding names one, the governed repository's
+// otherwise. Reading the governed root unconditionally was the shipped
+// v0.3.0 defect the fleet pilot measured: a target binding refused as
+// gograph_inauthentic_output because the wiki's (absent) graph was the
+// one fingerprinted.
+func currentGraphFingerprint(root string) (string, error) {
+	directory := filepath.Join(root, ".gograph")
 	directoryInfo, err := os.Lstat(directory)
 	if err != nil || !directoryInfo.IsDir() || directoryInfo.Mode()&os.ModeSymlink != 0 {
 		return "", fmt.Errorf("gograph artifact directory is unavailable")

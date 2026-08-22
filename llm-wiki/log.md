@@ -344,3 +344,13 @@ Maintenance note: the deterministic registry rebuild is now considered an observ
 - Shipped-capability proof from the RELEASED binary (brew formula 0.3.0) on a throwaway pair: capabilities reports validation_targets ["product"] and writes nothing into the wiki (0 files before and after); claim REL-EXT-1 bound by target NAME to rule R-1 in the external fixture repo validates to pass/rule_passed with validator_version v0.3.0; claim state observed/current.
 - Pages touched: log.md.
 - Validation: make verify; YAML parse both workflows.
+
+## 2026-08-22 — gograph target-root fix (v0.3.0 defect from the fleet pilot)
+
+- Defect: a gograph claim bound to an external validation target refused as cannot_evaluate/gograph_inauthentic_output ("graph fingerprint does not match the persisted graph") while gograph run directly against the target passed with a fingerprint equal to the target graph's sha256. FOUND BY USING THE CAPABILITY AGAINST THE REAL FLEET (THE-FLEET-TARGETS-PILOT re-validating PILOT-GOGRAPH-1), not by review — the unit fixtures all co-located claims and graphs, so the miss was invisible until a governed wiki without a graph met a target with one.
+- Cause: THE-SCRINIUM-TARGETS threaded the validation root into validateRepository but not validateAnalysis/currentGraphFingerprint, which still read .gograph/graph.json under the GOVERNED repo.
+- Fix: root threaded through validateAnalysis into currentGraphFingerprint(root); governed path unchanged when no target is bound. The inauthentic branch now carries the authenticated metadata (target name included) — a refusal must say which target it refused; mirrors the rulefloor adapter.
+- Tests, watched failing pre-fix: TestTargetBindingFingerprintsTargetGraphNotGovernedDecoy (governed repo carries a DECOY graph with different bytes — a graph-less governed repo would pass for the wrong reason; pre-fix failure reproduced the fleet's exact refusal); TestInauthenticRefusalCarriesTargetMetadata (pre-fix metadata lacked gograph.target); TestGovernedBindingStillUsesGovernedGraph (control: no target -> the decoy stays authoritative and a target-fingerprint document refuses).
+- Same-class sweep (v.repositoryRoot across both adapters): exactly one bad site (the fixed one); the two root := v.repositoryRoot default-resolution lines are correct; rulefloor's analysis path already used the threaded root. Deliberately left: the gograph malformed-output branches still pass nil metadata — they fire before an authenticated document exists.
+- Pages touched: log.md.
+- Validation: make verify.
