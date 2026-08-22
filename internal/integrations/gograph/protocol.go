@@ -35,12 +35,14 @@ const (
 type Config struct {
 	Executable     string
 	RepositoryRoot string
+	Targets        map[string]string
 }
 
 type binding struct {
 	document    bindingDocument
 	fingerprint string
 	json        string
+	target      string
 }
 
 type bindingDocument struct {

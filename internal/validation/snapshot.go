@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"hash"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -19,6 +21,12 @@ type Repository interface {
 
 type Snapshotter struct {
 	repository Repository
+	// targets maps trusted validation-target names to canonical roots.
+	// A binding that names a target gets that target's canonical ledger
+	// artifact folded into the scoped repository snapshot — and through
+	// it into the input fingerprint — so the claim goes STALE when the
+	// external repository moves instead of silently re-passing.
+	targets map[string]string
 }
 
 type RepositoryEntry struct {
@@ -26,8 +34,45 @@ type RepositoryEntry struct {
 	Fingerprint string
 }
 
-func NewSnapshotter(repository Repository) *Snapshotter {
-	return &Snapshotter{repository: repository}
+func NewSnapshotter(repository Repository, targets map[string]string) *Snapshotter {
+	return &Snapshotter{repository: repository, targets: targets}
+}
+
+// targetLedgerFile names the per-validator canonical artifact whose bytes
+// pin an external target's state. Validators without such an artifact do
+// not support targets.
+func targetLedgerFile(validatorID string) (string, bool) {
+	switch validatorID {
+	case "rulefloor":
+		return "RULE-FLOOR.md", true
+	case "gograph":
+		return filepath.Join(".gograph", "graph.json"), true
+	default:
+		return "", false
+	}
+}
+
+// fingerprintTargetFile reads one file under a canonical target root with
+// the same policy the wiki store applies: the final component must be a
+// regular non-symlink file. The target is READ-ONLY — nothing here writes.
+func fingerprintTargetFile(root, rel string) (bool, string, error) {
+	full := filepath.Join(root, rel)
+	info, err := os.Lstat(full)
+	if os.IsNotExist(err) {
+		return false, "", nil
+	}
+	if err != nil {
+		return false, "", err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return true, "", fmt.Errorf("%s is not a regular file", rel)
+	}
+	data, err := os.ReadFile(full)
+	if err != nil {
+		return true, "", err
+	}
+	digest := sha256.Sum256(data)
+	return true, fmt.Sprintf("sha256:%x", digest), nil
 }
 
 func (s *Snapshotter) Build(ctx context.Context, claim knowledge.Claim, binding knowledge.ValidationBinding) (RepositorySnapshot, error) {
@@ -71,6 +116,24 @@ func (s *Snapshotter) Build(ctx context.Context, claim knowledge.Claim, binding 
 			staleEvidence = item.ID
 		}
 		entries = append(entries, RepositoryEntry{Path: path, Fingerprint: fingerprint})
+	}
+	if name := binding.Parameters["target"]; name != "" {
+		ledger, supported := targetLedgerFile(binding.ValidatorID)
+		if !supported {
+			return RepositorySnapshot{}, validationError("unsupported_target_binding", fmt.Sprintf("validator %s does not support validation targets", binding.ValidatorID))
+		}
+		root, allowlisted := s.targets[name]
+		if !allowlisted {
+			return RepositorySnapshot{}, validationError("unknown_validation_target", fmt.Sprintf("binding names validation target %q, which is not allowlisted in scrinium.json validation_targets", name))
+		}
+		exists, fingerprint, err := fingerprintTargetFile(root, ledger)
+		if err != nil {
+			return RepositorySnapshot{}, validationError("repository_snapshot_failed", err.Error())
+		}
+		if !exists {
+			return RepositorySnapshot{}, validationError("missing_repository_state", fmt.Sprintf("validation target %q has no %s", name, ledger))
+		}
+		entries = append(entries, RepositoryEntry{Path: "target:" + name + "/" + ledger, Fingerprint: fingerprint})
 	}
 	if len(entries) == 0 {
 		return RepositorySnapshot{}, validationError("repository_snapshot_unavailable", "binding has no reproducible repository_reference evidence")

@@ -22,6 +22,8 @@ var (
 	versionPattern = regexp.MustCompile(`^[0-9A-Za-z][0-9A-Za-z._+-]{0,127}$`)
 	codePattern    = regexp.MustCompile(`^[a-z][a-z0-9_]{1,127}$`)
 	hex64Pattern   = regexp.MustCompile(`^[0-9a-f]{64}$`)
+	// Target names are abstract allowlist keys, never filesystem paths.
+	targetNamePattern = regexp.MustCompile(`^[a-z][a-z0-9._-]{0,63}$`)
 )
 
 var knownReasons = map[string]struct{}{
@@ -37,6 +39,7 @@ var knownReasons = map[string]struct{}{
 type Validator struct {
 	executable     string
 	repositoryRoot string
+	targets        map[string]string
 	version        string
 	runner         commandRunner
 }
@@ -66,7 +69,18 @@ func newValidator(ctx context.Context, config Config, runner commandRunner) (*Va
 	if err != nil {
 		return nil, fmt.Errorf("invalid Gograph repository root: %w", err)
 	}
-	validator := &Validator{executable: executable, repositoryRoot: root, runner: runner}
+	targets := make(map[string]string, len(config.Targets))
+	for name, targetRoot := range config.Targets {
+		if !targetNamePattern.MatchString(name) {
+			return nil, fmt.Errorf("invalid Gograph validation target name %q", name)
+		}
+		canonical, targetErr := canonicalDirectory(targetRoot)
+		if targetErr != nil {
+			return nil, fmt.Errorf("invalid Gograph validation target %q: %w", name, targetErr)
+		}
+		targets[name] = canonical
+	}
+	validator := &Validator{executable: executable, repositoryRoot: root, targets: targets, runner: runner}
 	version, err := validator.discoverVersion(ctx)
 	if err != nil {
 		return nil, err
@@ -107,7 +121,20 @@ func (v *Validator) Validate(ctx context.Context, req validation.Request) (knowl
 		return v.cannotEvaluate(req, "gograph_version_changed", "Gograph version changed after validator registration", nil, map[string]string{"gograph.discovered_version": version}), nil
 	}
 
-	process := v.runner.Run(ctx, v.executable, "validate", "--repo", v.repositoryRoot, "--binding-json", parsed.json, "--json")
+	root := v.repositoryRoot
+	if parsed.target != "" {
+		allowlisted, ok := v.targets[parsed.target]
+		if !ok {
+			return v.cannotEvaluate(req, "gograph_unknown_target", fmt.Sprintf("binding names validation target %q, which is not allowlisted in scrinium.json validation_targets", parsed.target), nil, nil), nil
+		}
+		current, rootErr := canonicalDirectory(allowlisted)
+		if rootErr != nil || current != allowlisted {
+			return v.cannotEvaluate(req, "gograph_target_unavailable", fmt.Sprintf("validation target %q no longer resolves to its registered directory", parsed.target), nil, nil), nil
+		}
+		root = allowlisted
+	}
+
+	process := v.runner.Run(ctx, v.executable, "validate", "--repo", root, "--binding-json", parsed.json, "--json")
 	if err := ctx.Err(); err != nil {
 		return v.contextResult(req, err, &process), nil
 	}
@@ -121,7 +148,7 @@ func (v *Validator) Validate(ctx context.Context, req validation.Request) (knowl
 	if err := requireValidationFields(process.stdout); err != nil {
 		return v.cannotEvaluate(req, "gograph_malformed_output", err.Error(), &process, nil), nil
 	}
-	authenticated, authenticityErr := v.authenticate(req, parsed, document, process.exitCode)
+	authenticated, authenticityErr := v.authenticate(req, parsed, root, document, process.exitCode)
 	if authenticityErr != nil {
 		return v.cannotEvaluate(req, "gograph_inauthentic_output", authenticityErr.Error(), &process, nil), nil
 	}
@@ -155,9 +182,9 @@ func (v *Validator) discoverVersion(ctx context.Context) (string, error) {
 	return document.Version, nil
 }
 
-func (v *Validator) authenticate(req validation.Request, requested binding, document validationDocument, exitCode int) (authenticatedDocument, error) {
+func (v *Validator) authenticate(req validation.Request, requested binding, root string, document validationDocument, exitCode int) (authenticatedDocument, error) {
 	authenticated := authenticatedDocument{
-		metadata:    documentMetadata(req, document),
+		metadata:    documentMetadata(req, requested, document),
 		diagnostics: convertDiagnostics(document.Evaluation.Diagnostics),
 	}
 	if err := validateDocument(document, requested.document); err != nil {
@@ -176,7 +203,7 @@ func (v *Validator) authenticate(req validation.Request, requested binding, docu
 	if document.Request.BindingFingerprint != requested.fingerprint {
 		return authenticated, fmt.Errorf("gograph binding fingerprint does not match the canonical request")
 	}
-	if err := v.validateRepository(document.Repository); err != nil {
+	if err := v.validateRepository(root, document.Repository); err != nil {
 		return authenticated, err
 	}
 	expectedExit := map[string]int{"pass": 0, "fail": 1, "cannot_evaluate": 2}[document.Evaluation.Outcome]
@@ -241,10 +268,10 @@ func evaluatedFailureReason(reason string) bool {
 	}
 }
 
-func (v *Validator) validateRepository(repository repositoryDocument) error {
+func (v *Validator) validateRepository(boundRoot string, repository repositoryDocument) error {
 	root, err := canonicalDirectory(repository.Root)
-	if err != nil || root != v.repositoryRoot {
-		return fmt.Errorf("gograph repository root does not match the bound Scrinium repository")
+	if err != nil || root != boundRoot {
+		return fmt.Errorf("gograph repository root does not match the bound validation root")
 	}
 	if repository.SourceFingerprint != "" && !hex64Pattern.MatchString(repository.SourceFingerprint) {
 		return fmt.Errorf("gograph source fingerprint is invalid")
@@ -493,10 +520,11 @@ func (v *Validator) contextResult(req validation.Request, err error, process *co
 	return v.cannotEvaluate(req, code, err.Error(), process, nil)
 }
 
-func documentMetadata(req validation.Request, document validationDocument) map[string]string {
+func documentMetadata(req validation.Request, requested binding, document validationDocument) map[string]string {
 	metadata := make(map[string]string)
 	putMetadata(metadata, "repository.fingerprint", req.Repository.Fingerprint)
 	putMetadata(metadata, "validation.input_fingerprint", req.InputFingerprint)
+	putMetadata(metadata, "gograph.target", requested.target)
 	putMetadata(metadata, "gograph.version", document.GographVersion)
 	putMetadata(metadata, "gograph.predicate", bindingPredicate(document))
 	putMetadata(metadata, "gograph.source_fingerprint", document.Repository.SourceFingerprint)

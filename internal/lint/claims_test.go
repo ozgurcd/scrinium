@@ -42,7 +42,7 @@ func newClaimLinter(t *testing.T) (*store.Store, *store.ClaimStore, *ClaimServic
 	claims := store.NewClaimStore(wiki)
 	sources := store.NewSourceStore(wiki)
 	validators := validation.NewRegistry()
-	return repository, claims, NewClaimService(claims, sources, repository, validators, validation.NewSnapshotter(repository))
+	return repository, claims, NewClaimService(claims, sources, repository, validators, validation.NewSnapshotter(repository, nil))
 }
 
 type lintValidator struct {

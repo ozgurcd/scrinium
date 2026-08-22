@@ -282,7 +282,10 @@ func cannotEvaluateResult(req validation.Request, descriptor validation.Descript
 		RepositoryRevision: req.Repository.Revision, SnapshotFingerprint: req.Repository.Fingerprint,
 		InputFingerprint: req.InputFingerprint, Assurance: knowledge.AssuranceObservation,
 		Outcome: knowledge.OutcomeCannotEvaluate, ReasonCode: code, Reason: reason,
-		EvidenceIDs: append([]string(nil), req.Binding.EvidenceIDs...),
+		// []string{} not nil: an empty evidence list must persist as [],
+		// or the canonical record write refuses (evidence_ids must be a
+		// JSON array). Target bindings routinely carry no wiki evidence.
+		EvidenceIDs: append([]string{}, req.Binding.EvidenceIDs...),
 		StartedAt:   req.StartedAt, CompletedAt: completed,
 	}
 }

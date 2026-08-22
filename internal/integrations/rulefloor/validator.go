@@ -40,19 +40,27 @@ var (
 	reasonCodePattern = regexp.MustCompile(`^[a-z][a-z0-9_]{1,127}$`)
 	hex12Pattern      = regexp.MustCompile(`^[0-9a-f]{12}$`)
 	hex64Pattern      = regexp.MustCompile(`^[0-9a-f]{64}$`)
+	// Target names are abstract allowlist keys, never filesystem paths:
+	// bindings stay portable and the audit trail records WHAT was
+	// validated, not one machine's layout.
+	targetNamePattern = regexp.MustCompile(`^[a-z][a-z0-9._-]{0,63}$`)
 )
 
 // Config contains only trusted process configuration. Claim bindings cannot
-// override either the executable or repository root.
+// override the executable or any filesystem path; a binding may only NAME a
+// validation target, and only names in the trusted Targets allowlist
+// (scrinium.json validation_targets) resolve to a repository root.
 type Config struct {
 	Executable     string
 	RepositoryRoot string
+	Targets        map[string]string
 }
 
 // Validator implements validation.Validator through Rulefloor's JSON CLI.
 type Validator struct {
 	executable     string
 	repositoryRoot string
+	targets        map[string]string
 	version        string
 	runner         commandRunner
 }
@@ -184,6 +192,7 @@ type binding struct {
 	ruleID  string
 	mode    string
 	profile string
+	target  string
 }
 
 type authenticatedDocument struct {
@@ -216,7 +225,18 @@ func newValidator(ctx context.Context, config Config, runner commandRunner) (*Va
 	if err != nil {
 		return nil, fmt.Errorf("invalid Rulefloor repository root: %w", err)
 	}
-	validator := &Validator{executable: executable, repositoryRoot: root, runner: runner}
+	targets := make(map[string]string, len(config.Targets))
+	for name, targetRoot := range config.Targets {
+		if !targetNamePattern.MatchString(name) {
+			return nil, fmt.Errorf("invalid Rulefloor validation target name %q", name)
+		}
+		canonical, targetErr := canonicalDirectory(targetRoot)
+		if targetErr != nil {
+			return nil, fmt.Errorf("invalid Rulefloor validation target %q: %w", name, targetErr)
+		}
+		targets[name] = canonical
+	}
+	validator := &Validator{executable: executable, repositoryRoot: root, targets: targets, runner: runner}
 	version, err := validator.discoverVersion(ctx)
 	if err != nil {
 		return nil, err
@@ -261,7 +281,22 @@ func (v *Validator) Validate(ctx context.Context, req validation.Request) (knowl
 		return v.cannotEvaluate(req, "rulefloor_version_changed", "Rulefloor version changed after validator registration", nil, map[string]string{"rulefloor.discovered_version": version}), nil
 	}
 
-	args := []string{"validate", parsed.ruleID, "--repo", v.repositoryRoot, "--mode", parsed.mode}
+	root := v.repositoryRoot
+	if parsed.target != "" {
+		allowlisted, ok := v.targets[parsed.target]
+		if !ok {
+			return v.cannotEvaluate(req, "rulefloor_unknown_target", fmt.Sprintf("binding names validation target %q, which is not allowlisted in scrinium.json validation_targets", parsed.target), nil, nil), nil
+		}
+		// Re-canonicalize at use: a target directory deleted or replaced
+		// by a symlink after registration must refuse, not follow.
+		current, rootErr := canonicalDirectory(allowlisted)
+		if rootErr != nil || current != allowlisted {
+			return v.cannotEvaluate(req, "rulefloor_target_unavailable", fmt.Sprintf("validation target %q no longer resolves to its registered directory", parsed.target), nil, nil), nil
+		}
+		root = allowlisted
+	}
+
+	args := []string{"validate", parsed.ruleID, "--repo", root, "--mode", parsed.mode}
 	if parsed.profile != "" {
 		args = append(args, "--profile", parsed.profile)
 	}
@@ -281,7 +316,7 @@ func (v *Validator) Validate(ctx context.Context, req validation.Request) (knowl
 	if err := requireValidationDocumentFields(process.stdout); err != nil {
 		return v.cannotEvaluate(req, "rulefloor_malformed_output", err.Error(), &process, nil), nil
 	}
-	authenticated, authenticityErr := v.authenticate(req, parsed, document, process.exitCode)
+	authenticated, authenticityErr := v.authenticate(req, parsed, root, document, process.exitCode)
 	if authenticityErr != nil {
 		return v.cannotEvaluate(req, "rulefloor_inauthentic_output", authenticityErr.Error(), &process, authenticated.metadata), nil
 	}
@@ -304,7 +339,7 @@ func parseBinding(candidate knowledge.ValidationBinding) (binding, error) {
 		return binding{}, &validation.Error{Code: "invalid_binding_schema", Message: "Rulefloor reference must be a safe uppercase semantic rule ID with a numeric suffix"}
 	}
 	for key := range candidate.Parameters {
-		if key != "mode" && key != "profile" {
+		if key != "mode" && key != "profile" && key != "target" {
 			return binding{}, &validation.Error{Code: "invalid_binding_schema", Message: "Rulefloor binding contains unsupported parameter " + key}
 		}
 	}
@@ -319,7 +354,11 @@ func parseBinding(candidate knowledge.ValidationBinding) (binding, error) {
 	if profile != "" && !profilePattern.MatchString(profile) {
 		return binding{}, &validation.Error{Code: "invalid_binding_schema", Message: "Rulefloor profile has an invalid format"}
 	}
-	return binding{ruleID: candidate.Reference, mode: mode, profile: profile}, nil
+	target := candidate.Parameters["target"]
+	if target != "" && !targetNamePattern.MatchString(target) {
+		return binding{}, &validation.Error{Code: "invalid_binding_schema", Message: "Rulefloor target must be an abstract allowlisted name, never a filesystem path"}
+	}
+	return binding{ruleID: candidate.Reference, mode: mode, profile: profile, target: target}, nil
 }
 
 func (v *Validator) discoverVersion(ctx context.Context) (string, error) {
@@ -346,9 +385,9 @@ func (v *Validator) discoverVersion(ctx context.Context) (string, error) {
 	return document.Version, nil
 }
 
-func (v *Validator) authenticate(req validation.Request, requested binding, document validationDocument, exitCode int) (authenticatedDocument, error) {
+func (v *Validator) authenticate(req validation.Request, requested binding, root string, document validationDocument, exitCode int) (authenticatedDocument, error) {
 	authenticated := authenticatedDocument{
-		metadata:    documentMetadata(req, document),
+		metadata:    documentMetadata(req, requested, document),
 		diagnostics: convertDiagnostics(document.Evaluation.Diagnostics),
 	}
 	if err := validateDocumentFields(document); err != nil {
@@ -364,7 +403,7 @@ func (v *Validator) authenticate(req validation.Request, requested binding, docu
 	if document.Request.RuleID != requested.ruleID || document.Request.Mode != requested.mode || document.Request.Profile != requested.profile {
 		return authenticated, fmt.Errorf("rulefloor response does not match the requested rule, mode, and profile")
 	}
-	if err := v.validateRepository(document.Repository); err != nil {
+	if err := v.validateRepository(root, document.Repository); err != nil {
 		return authenticated, err
 	}
 	expectedExit := map[string]int{"pass": 0, "fail": 1, "cannot_evaluate": 2}[document.Evaluation.Outcome]
@@ -516,12 +555,12 @@ func validatePassingRule(document validationDocument) error {
 	return nil
 }
 
-func (v *Validator) validateRepository(repository repositoryDocument) error {
+func (v *Validator) validateRepository(boundRoot string, repository repositoryDocument) error {
 	root, err := canonicalDirectory(repository.Root)
-	if err != nil || root != v.repositoryRoot {
-		return fmt.Errorf("rulefloor repository root does not match the bound Scrinium repository")
+	if err != nil || root != boundRoot {
+		return fmt.Errorf("rulefloor repository root does not match the bound validation root")
 	}
-	expectedLedger := filepath.Join(v.repositoryRoot, "RULE-FLOOR.md")
+	expectedLedger := filepath.Join(boundRoot, "RULE-FLOOR.md")
 	ledgerPath, err := filepath.Abs(repository.LedgerPath)
 	if err == nil {
 		ledgerPath, err = filepath.EvalSymlinks(ledgerPath)
@@ -624,13 +663,15 @@ func (v *Validator) contextResult(req validation.Request, err error, process *co
 	return v.cannotEvaluate(req, code, err.Error(), process, nil)
 }
 
-func documentMetadata(req validation.Request, document validationDocument) map[string]string {
+func documentMetadata(req validation.Request, requested binding, document validationDocument) map[string]string {
 	metadata := make(map[string]string)
 	putMetadata(metadata, "repository.fingerprint", req.Repository.Fingerprint)
 	putMetadata(metadata, "validation.input_fingerprint", req.InputFingerprint)
 	putMetadata(metadata, "rulefloor.version", document.RulefloorVersion)
 	putMetadata(metadata, "rulefloor.rule_id", document.Request.RuleID)
 	putMetadata(metadata, "rulefloor.mode", document.Request.Mode)
+	putMetadata(metadata, "rulefloor.target", requested.target)
+	putMetadata(metadata, "rulefloor.ledger_path", document.Repository.LedgerPath)
 	putMetadata(metadata, "rulefloor.ledger_fingerprint", document.Repository.LedgerFingerprint)
 	putMetadata(metadata, "rulefloor.reason_code", document.Evaluation.Reason)
 	putMetadata(metadata, "rulefloor.static_integrity", document.Evaluation.StaticIntegrity)

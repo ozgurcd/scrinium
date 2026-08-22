@@ -170,6 +170,9 @@ func (s *Server) Capabilities() any {
 			"scope":     "Legacy source-summary phrase review only; findings are heuristic review leads and never change claim state.",
 		},
 		"validators": validators,
+		// Abstract target NAMES only: resolved paths are machine-local
+		// detail and never travel in capability documents.
+		"validation_targets": s.app.ValidationTargetNames(),
 		"governance": map[string]any{
 			"enabled": s.app.Governance().Enabled, "protected_files": s.app.Governance().ProtectedFiles,
 		},

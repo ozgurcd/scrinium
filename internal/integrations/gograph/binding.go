@@ -23,10 +23,14 @@ func parseBinding(candidate knowledge.ValidationBinding) (binding, error) {
 	}
 	for key := range candidate.Parameters {
 		switch key {
-		case "predicate", "object", "required_precision":
+		case "predicate", "object", "required_precision", "target":
 		default:
 			return binding{}, bindingError("invalid_binding_schema", "Gograph binding contains unsupported parameter "+key)
 		}
+	}
+	target := candidate.Parameters["target"]
+	if target != "" && !targetNamePattern.MatchString(target) {
+		return binding{}, bindingError("invalid_binding_schema", "Gograph target must be an abstract allowlisted name, never a filesystem path")
 	}
 
 	predicate := candidate.Parameters["predicate"]
@@ -74,7 +78,7 @@ func parseBinding(candidate knowledge.ValidationBinding) (binding, error) {
 		return binding{}, bindingError("invalid_binding_schema", "Gograph binding could not be encoded")
 	}
 	digest := sha256.Sum256(append(encoded, '\n'))
-	return binding{document: document, fingerprint: hex.EncodeToString(digest[:]), json: string(encoded)}, nil
+	return binding{document: document, fingerprint: hex.EncodeToString(digest[:]), json: string(encoded), target: target}, nil
 }
 
 func predicateShape(predicate string) (subjectKind, objectKind string, needsObject bool, err error) {

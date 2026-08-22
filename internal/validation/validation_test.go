@@ -201,7 +201,7 @@ func TestScopedRepositorySnapshotAndInputFingerprint(t *testing.T) {
 	req := testValidationRequest()
 	expected := RepositoryFingerprint([]RepositoryEntry{{Path: "project.txt", Fingerprint: validationTestFingerprint}})
 	req.Binding.SnapshotFingerprint = expected
-	snapshotter := NewSnapshotter(testRepository{fingerprints: map[string]string{"project.txt": validationTestFingerprint}})
+	snapshotter := NewSnapshotter(testRepository{fingerprints: map[string]string{"project.txt": validationTestFingerprint}}, nil)
 	snapshot, err := snapshotter.Build(context.Background(), req.Claim, req.Binding)
 	if err != nil || snapshot.Fingerprint != expected {
 		t.Fatalf("snapshot = %#v, err %v", snapshot, err)
@@ -228,7 +228,7 @@ func TestScopedRepositorySnapshotAndInputFingerprint(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			request := req
 			test.mutate(&request)
-			_, err := NewSnapshotter(test.repository).Build(context.Background(), request.Claim, request.Binding)
+			_, err := NewSnapshotter(test.repository, nil).Build(context.Background(), request.Claim, request.Binding)
 			if validationErrorCode(err) != test.code {
 				t.Fatalf("error code = %q, want %q (%v)", validationErrorCode(err), test.code, err)
 			}

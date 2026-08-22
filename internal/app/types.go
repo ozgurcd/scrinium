@@ -13,6 +13,13 @@ type Config struct {
 	WikiRoot        string           `json:"wiki_root"`
 	WriteGovernance *WriteGovernance `json:"write_governance,omitempty"`
 	Validators      *Validators      `json:"validators,omitempty"`
+	// ValidationTargets maps abstract target NAMES to local repository
+	// roots that validators may READ (owner ruling: a validator may read
+	// outside the governed repo; Scrinium writes stay under wiki_root).
+	// Bindings name a target; only names allowlisted here resolve — a
+	// binding can never carry a filesystem path (see the validator
+	// Config doc comments below). Additive within the v1 config schema.
+	ValidationTargets map[string]string `json:"validation_targets,omitempty"`
 }
 
 // WriteGovernance configures protected wiki paths.

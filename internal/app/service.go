@@ -96,13 +96,22 @@ func Open(ctx context.Context, configPath string, content Content) (*Service, er
 	if content.Guide != "" {
 		standardFiles["scrinium-guide.md"] = content.Guide
 	}
+	// Resolve the trusted validation-target allowlist ONCE, with the same
+	// confinement policy everywhere: names are abstract (no path
+	// characters), every root must be an existing real directory reached
+	// without a symlinked final component, and validators only ever READ
+	// from it — Scrinium's writes stay under wiki_root.
+	targetRoots, err := resolveValidationTargets(filepath.Dir(absConfig), config.ValidationTargets)
+	if err != nil {
+		return nil, err
+	}
 	validators := validation.NewRegistry()
 	manual := validation.NewManualValidator()
 	if err := validators.Register(manual); err != nil {
 		return nil, fmt.Errorf("failed to register manual validator: %w", err)
 	}
 	validatorInfo := []ValidatorStatus{{ID: validation.ManualValidatorID, Available: true, Descriptor: manual.Descriptor(), BindingSchemas: []string{validation.ManualBindingVersion}}}
-	rulefloorConfig := rulefloor.Config{Executable: configuredRulefloorExecutable(config), RepositoryRoot: repository.Root()}
+	rulefloorConfig := rulefloor.Config{Executable: configuredRulefloorExecutable(config), RepositoryRoot: repository.Root(), Targets: targetRoots}
 	if adapter, adapterErr := rulefloor.New(ctx, rulefloorConfig); adapterErr == nil {
 		if registerErr := validators.Register(adapter); registerErr != nil {
 			return nil, fmt.Errorf("failed to register Rulefloor validator: %w", registerErr)
@@ -111,7 +120,7 @@ func Open(ctx context.Context, configPath string, content Content) (*Service, er
 	} else {
 		validatorInfo = append(validatorInfo, ValidatorStatus{ID: rulefloor.ValidatorID, Optional: true, Reason: boundedStatusReason(adapterErr), BindingSchemas: []string{rulefloor.BindingSchemaVersion}})
 	}
-	gographConfig := gograph.Config{Executable: configuredGographExecutable(config), RepositoryRoot: repository.Root()}
+	gographConfig := gograph.Config{Executable: configuredGographExecutable(config), RepositoryRoot: repository.Root(), Targets: targetRoots}
 	if adapter, adapterErr := gograph.New(ctx, gographConfig); adapterErr == nil {
 		if registerErr := validators.Register(adapter); registerErr != nil {
 			return nil, fmt.Errorf("failed to register Gograph validator: %w", registerErr)
@@ -135,7 +144,7 @@ func Open(ctx context.Context, configPath string, content Content) (*Service, er
 		sources:       store.NewSourceStore(st),
 		validators:    validators,
 		validatorInfo: validatorInfo,
-		snapshots:     validation.NewSnapshotter(repository),
+		snapshots:     validation.NewSnapshotter(repository, targetRoots),
 		standardFiles: standardFiles,
 	}
 	svc.lint = lint.New(st, standardPages)
@@ -162,11 +171,86 @@ func (s *Service) Config() Config {
 			result.Validators.Gograph = &copyConfig
 		}
 	}
+	if s.config.ValidationTargets != nil {
+		result.ValidationTargets = make(map[string]string, len(s.config.ValidationTargets))
+		for name, path := range s.config.ValidationTargets {
+			result.ValidationTargets[name] = path
+		}
+	}
 	return result
 }
 
 // ConfigPath returns the absolute configuration path.
 func (s *Service) ConfigPath() string { return s.configPath }
+
+// ValidationTargetNames returns the sorted abstract names of the configured
+// validation targets. Names only — resolved paths are machine-local detail
+// and never travel in capability documents.
+func (s *Service) ValidationTargetNames() []string {
+	names := make([]string, 0, len(s.config.ValidationTargets))
+	for name := range s.config.ValidationTargets {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// resolveValidationTargets canonicalizes the trusted name->path allowlist.
+// Relative paths resolve against the configuration directory. Every root
+// must be an existing directory whose final path component is not a
+// symlink; a name must be abstract (no path separators). Failures are
+// configuration errors and fail Open loudly.
+func resolveValidationTargets(configDir string, targets map[string]string) (map[string]string, error) {
+	if len(targets) == 0 {
+		return nil, nil
+	}
+	resolved := make(map[string]string, len(targets))
+	for name, root := range targets {
+		if !validTargetName(name) {
+			return nil, appError(ErrorInvalid, fmt.Sprintf("invalid validation target name %q: must be a short lowercase name, never a path", name), nil)
+		}
+		if strings.TrimSpace(root) == "" {
+			return nil, appError(ErrorInvalid, fmt.Sprintf("validation target %q has an empty path", name), nil)
+		}
+		path := root
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(configDir, path)
+		}
+		info, err := os.Lstat(path)
+		if err != nil {
+			return nil, appError(ErrorInvalid, fmt.Sprintf("validation target %q does not resolve: %v", name, err), nil)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return nil, appError(ErrorInvalid, fmt.Sprintf("validation target %q is a symlink; targets must be real directories", name), nil)
+		}
+		if !info.IsDir() {
+			return nil, appError(ErrorInvalid, fmt.Sprintf("validation target %q is not a directory", name), nil)
+		}
+		absolute, err := filepath.Abs(path)
+		if err != nil {
+			return nil, appError(ErrorInvalid, fmt.Sprintf("validation target %q cannot be resolved: %v", name, err), nil)
+		}
+		resolved[name] = absolute
+	}
+	return resolved, nil
+}
+
+func validTargetName(name string) bool {
+	if len(name) == 0 || len(name) > 64 {
+		return false
+	}
+	if strings.ContainsAny(name, `/\`) || name != strings.ToLower(name) || strings.Contains(name, "..") {
+		return false
+	}
+	for _, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '.', r == '_', r == '-':
+		default:
+			return false
+		}
+	}
+	return name[0] >= 'a' && name[0] <= 'z'
+}
 
 // WikiRoot returns the absolute wiki root.
 func (s *Service) WikiRoot() string { return s.store.Root() }
