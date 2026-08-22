@@ -335,3 +335,12 @@ Maintenance note: the deterministic registry rebuild is now considered an observ
 - Hand-running the release steps is REFUSED as an alternative: it bypasses the verify and porcelain guards that exist because v0.2.0 and v0.2.1 both shipped +dirty; pre-bumping by hand then running release double-bumps (release bumps again). `--allow-dirty` is a store_true flag and cannot be negated with =false.
 - Pages touched: log.md.
 - Validation: make verify; both throwaway proofs.
+
+## 2026-08-22 — v0.3.0 closeout: artifact provenance verified; checkout pinned by SHA
+
+- v0.3.0 (tag 788e4da) published by run 32587053221; verified from the ARTIFACTS: darwin_arm64 and linux_amd64 both stamp `mod scrinium v0.3.0`, `vcs.revision=788e4da...`, `vcs.modified=false` — the provenance hook's first release is reproducible from its tag.
+- Tap formula hand-bumped v0.2.2 -> v0.3.0 with the tarball sha256 measured from the download (d8c2ec2e...); local tap commit, owner pushes.
+- Node-20 deprecation: actions/checkout re-pinned in ci.yml and release.yml from the floating @v4 to SHA 3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (latest stable, measured; same SHA the identuum publish workflows pin). setup-go@v7 and goreleaser-action@v7 measured current (v7.0.0 / v7.2.3 latest) and left alone.
+- Shipped-capability proof from the RELEASED binary (brew formula 0.3.0) on a throwaway pair: capabilities reports validation_targets ["product"] and writes nothing into the wiki (0 files before and after); claim REL-EXT-1 bound by target NAME to rule R-1 in the external fixture repo validates to pass/rule_passed with validator_version v0.3.0; claim state observed/current.
+- Pages touched: log.md.
+- Validation: make verify; YAML parse both workflows.
