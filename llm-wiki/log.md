@@ -297,3 +297,12 @@ Maintenance note: the deterministic registry rebuild is now considered an observ
 - Changes: (1) `.goreleaser.yaml` homebrew_casks publication REMOVED — the tap now carries a hand-maintained source-build formula (rulefloor mechanism); any GoReleaser homebrew block would overwrite it with an artifact-download install method, and the cask's quarantined unnotarized binary was SIGKILLed by Gatekeeper (measured: identical binary runs without the quarantine xattr, dies with it). (2) Release provenance teeth: the published v0.2.0 assets stamped vcs.modified=true (+dirty — irreproducible from the tag; a clean-clone build of the same tag stamps vcs.modified=false); `make release` now refuses a dirty tree and release CI asserts vcs.modified=false on every built binary. (3) Discovery is read-only: `app.Open` no longer bootstraps `scrinium-guide.md` (a bare `capabilities` call used to write into the governed wiki); the guide is now a `setup_llm_wiki` standard page. Regression tests: TestNewAppWritesNothingIntoWiki, TestSetupCreatedGuideMentionsSetupTool.
 - Pages touched: log.md; docs/v0.2-evidence-architecture.md and docs/v0.2-public-api.md updated to the read-only-discovery contract.
 - Validation: make verify.
+
+## 2026-08-22 — Release guard false refusal fixed
+
+- Objective: The dirty-tree guard refused a CLEAN tree on the owner's first `make release` (git status --porcelain empty before and after).
+- Cause, measured: verify ends in tidy-check, whose cp/`go mod tidy`/mv dance restored identical content but fresh inodes+mtimes; git's stat cache marked go.mod/go.sum modified, `git diff-index --quiet HEAD --` trusted the stale cache and fired, while `git status` (which refreshes the index) read clean.
+- Fix: tidy-check now runs `go mod tidy -diff` (reports without writing; measured supported and clean); the release guard runs `git update-index -q --refresh` before diff-index so stat-dirt never reads as a dirty tree.
+- Proof: make verify twice, guard exit 0 after each; recreated stat-dirt — bare diff-index exit 1 (old false refusal reproduced), hardened sequence exit 0; content append to README.md — refusal message + exit 1, restored byte-identical (sha256 match), guard exit 0. Release CI untouched (fresh-checkout check was never affected).
+- Pages touched: log.md.
+- Validation: make verify.

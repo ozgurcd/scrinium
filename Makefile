@@ -37,15 +37,15 @@ staticcheck:
 govulncheck:
 	govulncheck ./...
 
+# tidy-check reports WITHOUT writing: `go mod tidy -diff` exits non-zero and
+# prints the diff when go.mod/go.sum are untidy, touching neither file. The
+# previous cp/tidy/mv dance restored identical CONTENT but fresh inodes and
+# mtimes, which stat-dirtied git's index — `git diff-index` then saw a dirty
+# tree and the release guard refused a genuinely clean tree (measured
+# 2026-08-22: owner's first `make release` died with `git status --porcelain`
+# empty before and after).
 tidy-check:
-	@cp go.mod go.mod.bak && cp go.sum go.sum.bak 2>/dev/null || true
-	@go mod tidy
-	@if ! diff -q go.mod go.mod.bak > /dev/null 2>&1; then \
-		mv go.mod.bak go.mod; mv go.sum.bak go.sum 2>/dev/null || true; \
-		echo "go.mod is not tidy — run 'go mod tidy'"; \
-		exit 1; \
-	fi
-	@mv go.mod.bak go.mod 2>/dev/null || true; mv go.sum.bak go.sum 2>/dev/null || true
+	go mod tidy -diff
 
 # Install binary to /usr/local/bin
 install: build
@@ -64,7 +64,13 @@ clean:
 # vcs.modified=false (measured 2026-08-22). Release CI asserts the same
 # invariant on the built artifacts (see .github/workflows/release.yml).
 release: verify
-	@git diff-index --quiet HEAD -- || { \
+	@# update-index --refresh first: a STAT-dirty index (fresh inode/mtime,
+	@# identical content — e.g. left behind by any tool that rewrites a file
+	@# in place) must never read as a dirty tree. diff-index alone trusts
+	@# the stale stat cache; `git status` refreshes it, which is why the
+	@# 2026-08-22 false refusal showed a clean status beside a firing guard.
+	@git update-index -q --refresh; \
+	git diff-index --quiet HEAD -- || { \
 		echo "release: REFUSED — working tree has uncommitted tracked changes; a release must be reproducible from its tag (v0.2.0 shipped +dirty)"; \
 		exit 1; \
 	}
