@@ -1,7 +1,7 @@
 # Makefile for Scrinium MCP Server
 
 BINARY_NAME = scrinium
-VERSION = 0.4.0
+VERSION = 0.4.1
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
 INSTALL ?= install
