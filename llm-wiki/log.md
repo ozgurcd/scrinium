@@ -326,3 +326,12 @@ Maintenance note: the deterministic registry rebuild is now considered an observ
 - Schema decision: everything additive within v1 — new optional config key, new optional binding parameter inside the existing generic Parameters map, one new capabilities field. No schema version bump required.
 - Pages touched: log.md; docs/v0.2-public-api.md (Validation targets section).
 - Validation: make verify; new unit tests; throwaway E2E pass + stale rounds.
+
+## 2026-08-22 — Release bump level parameterized (BUMP=major|minor|patch)
+
+- Objective: `make release` hardcoded `bump2version patch`; the release shipping validation targets would have landed as v0.2.3. Owner wants v0.3.0.
+- Change: `BUMP ?= patch`; `bump2version $(BUMP)`; a `check-bump` prerequisite runs FIRST and refuses anything but major|minor|patch by name ("release: REFUSED — BUMP must be major, minor, or patch (got ...)") before verify or bump2version can run. Order unchanged: check-bump, verify, porcelain guard, bump, commit, tag, push. Commit message and tag still derive from the bumped Makefile VERSION, never from the BUMP word.
+- Proofs (throwaway clone, never the real repo): `bump2version minor` took Makefile VERSION 0.2.2 -> 0.3.0 and .bumpversion.cfg current_version 0.2.2 -> 0.3.0; `make release BUMP=mnor` refused with the named message at check-bump — no verify, no bump ran.
+- Hand-running the release steps is REFUSED as an alternative: it bypasses the verify and porcelain guards that exist because v0.2.0 and v0.2.1 both shipped +dirty; pre-bumping by hand then running release double-bumps (release bumps again). `--allow-dirty` is a store_true flag and cannot be negated with =false.
+- Pages touched: log.md.
+- Validation: make verify; both throwaway proofs.

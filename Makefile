@@ -56,7 +56,22 @@ install: build
 clean:
 	rm -f $(BINARY_NAME)
 
-# Release target: verify, bump patch version, commit, tag, and push tags to trigger GoReleaser CI.
+# Release level: make release BUMP=minor cuts a minor release; the default
+# stays patch. Validated BEFORE anything runs (check-bump is the first
+# prerequisite): a typo like BUMP=mnor refuses by name and never reaches
+# verify or bump2version. Do NOT pre-bump by hand and then run release —
+# release bumps again (double bump); and do NOT hand-run the release steps —
+# that bypasses the verify + porcelain guards that exist because two
+# releases already shipped +dirty.
+BUMP ?= patch
+
+check-bump:
+	@case "$(BUMP)" in \
+		major|minor|patch) ;; \
+		*) echo "release: REFUSED — BUMP must be major, minor, or patch (got \"$(BUMP)\")"; exit 1 ;; \
+	esac
+
+# Release target: verify, bump $(BUMP) version, commit, tag, and push tags to trigger GoReleaser CI.
 # Refuses an unclean tree FIRST. History of the +dirty releases, corrected:
 # v0.2.0 AND v0.2.1 both published binaries stamping vcs.modified=true.
 # The cause was NOT a stray local dirty build — the release pipeline
@@ -67,7 +82,7 @@ clean:
 # flips the stamp). dist/ is now ignored and every build carries a
 # provenance post hook inside .goreleaser.yaml that fails the release
 # BEFORE publication.
-release: verify
+release: check-bump verify
 	@# The guard measures what Go's build stamper measures: `git status
 	@# --porcelain` — tracked changes AND untracked files both stamp
 	@# vcs.modified=true into the binaries (measured: an untracked file
@@ -81,11 +96,11 @@ release: verify
 		git status --porcelain; \
 		exit 1; \
 	fi
-	bump2version patch
+	bump2version $(BUMP)
 	@NEW_VERSION=$$(grep "^VERSION =" Makefile | cut -d' ' -f3); \
 	git add Makefile .bumpversion.cfg; \
 	git commit -m "Release v$$NEW_VERSION"; \
 	git tag v$$NEW_VERSION; \
 	git push origin main --tags
 
-.PHONY: build version test verify vet format-check staticcheck govulncheck tidy-check install clean release
+.PHONY: build version test verify vet format-check staticcheck govulncheck tidy-check install clean release check-bump
