@@ -57,23 +57,30 @@ clean:
 	rm -f $(BINARY_NAME)
 
 # Release target: verify, bump patch version, commit, tag, and push tags to trigger GoReleaser CI.
-# Refuses a dirty tree FIRST: the published v0.2.0 assets carried
-# vcs.modified=true ("v0.2.0+dirty" in `go version -m`) — built from a tree
-# with uncommitted tracked changes, so the binaries cannot be reproduced
-# from the tag. A clean-clone build of the same tag stamps
-# vcs.modified=false (measured 2026-08-22). Release CI asserts the same
-# invariant on the built artifacts (see .github/workflows/release.yml).
+# Refuses an unclean tree FIRST. History of the +dirty releases, corrected:
+# v0.2.0 AND v0.2.1 both published binaries stamping vcs.modified=true.
+# The cause was NOT a stray local dirty build — the release pipeline
+# stamped +dirty BY CONSTRUCTION: goreleaser writes dist/ into the tree,
+# dist/ was not gitignored, and Go's stamper counts untracked files
+# (measured 2026-08-22: fresh clone + goreleaser build → +dirty; with
+# dist/ gitignored → vcs.modified=false; a single untracked file alone
+# flips the stamp). dist/ is now ignored and every build carries a
+# provenance post hook inside .goreleaser.yaml that fails the release
+# BEFORE publication.
 release: verify
-	@# update-index --refresh first: a STAT-dirty index (fresh inode/mtime,
-	@# identical content — e.g. left behind by any tool that rewrites a file
-	@# in place) must never read as a dirty tree. diff-index alone trusts
-	@# the stale stat cache; `git status` refreshes it, which is why the
-	@# 2026-08-22 false refusal showed a clean status beside a firing guard.
+	@# The guard measures what Go's build stamper measures: `git status
+	@# --porcelain` — tracked changes AND untracked files both stamp
+	@# vcs.modified=true into the binaries (measured: an untracked file
+	@# alone flips the stamp). diff-index was wrong twice over: it missed
+	@# untracked files entirely, and its stale stat cache once refused a
+	@# genuinely clean tree. update-index --refresh is kept so stat-dirt
+	@# (fresh inode, identical content) never reads as dirty.
 	@git update-index -q --refresh; \
-	git diff-index --quiet HEAD -- || { \
-		echo "release: REFUSED — working tree has uncommitted tracked changes; a release must be reproducible from its tag (v0.2.0 shipped +dirty)"; \
+	if [ -n "$$(git status --porcelain)" ]; then \
+		echo "release: REFUSED — working tree is not clean (tracked changes or untracked files); Go stamps vcs.modified=true for either, and a release must be reproducible from its tag (v0.2.0 and v0.2.1 both shipped +dirty)"; \
+		git status --porcelain; \
 		exit 1; \
-	}
+	fi
 	bump2version patch
 	@NEW_VERSION=$$(grep "^VERSION =" Makefile | cut -d' ' -f3); \
 	git add Makefile .bumpversion.cfg; \

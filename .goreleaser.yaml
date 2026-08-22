@@ -13,6 +13,22 @@ builds:
       - arm64
     ldflags:
       - -s -w -X scrinium/cmd/scrinium.version={{.Version}}
+    hooks:
+      # Provenance assert BEFORE publication: each binary must stamp
+      # vcs.modified=false the moment it is built, failing the release
+      # while nothing has been uploaded. GoReleaser OSS cannot split
+      # build/assert/publish into separate runs without rebuilding
+      # (release --skip=publish then release --clean would publish a
+      # DIFFERENT build than the one asserted; `continue` is Pro-only),
+      # so the assert rides the build itself. v0.2.0 and v0.2.1 shipped
+      # vcs.modified=true because goreleaser's own unignored dist/
+      # output dirtied the tree mid-run; the post-publish workflow step
+      # that caught it on v0.2.1 fired only AFTER publication.
+      post:
+        - cmd: >-
+            sh -c 'go version -m "{{ .Path }}" | grep -q "vcs.modified=false"
+            || { echo "PROVENANCE FAIL — {{ .Path }} stamps a modified tree";
+            go version -m "{{ .Path }}" | grep vcs; exit 1; }'
 
 archives:
   - formats: [tar.gz]

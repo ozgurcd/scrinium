@@ -306,3 +306,12 @@ Maintenance note: the deterministic registry rebuild is now considered an observ
 - Proof: make verify twice, guard exit 0 after each; recreated stat-dirt — bare diff-index exit 1 (old false refusal reproduced), hardened sequence exit 0; content append to README.md — refusal message + exit 1, restored byte-identical (sha256 match), guard exit 0. Release CI untouched (fresh-checkout check was never affected).
 - Pages touched: log.md.
 - Validation: make verify.
+
+## 2026-08-22 — Provenance assert moved before publication; +dirty root cause corrected
+
+- Objective: v0.2.1 release run 32584410033 FAILED at "Assert clean build provenance" AFTER GoReleaser had published — wrong measurement and wrong order.
+- Root cause, measured (CORRECTS the earlier entries' "built outside this workflow from a dirty tree" explanation for v0.2.0): the pipeline stamped +dirty BY CONSTRUCTION. GoReleaser writes dist/ into the tree, dist/ was not gitignored, and Go's build stamper counts UNTRACKED files (git status --porcelain semantics) while the workflow's diff-index refusal saw tracked changes only. Fresh clone of v0.2.1 + goreleaser build → binary stamps v0.2.1+dirty, vcs.modified=true; same clone with dist/ gitignored → vcs.modified=false; a single untracked file alone flips the stamp back to true (snapshot-mode control).
+- Fixes: dist/ gitignored; BOTH release guards (Makefile release target and the workflow step) now refuse on `git status --porcelain` non-empty — the same definition Go stamps by — keeping the update-index refresh; the provenance assert is now a per-build post hook in .goreleaser.yaml (fails the build before archiving/publication; proved: clean tree → build succeeded + vcs.modified=false, untracked file → "post hook failed … PROVENANCE FAIL", exit 1, nothing published). GoReleaser OSS cannot split build/assert/publish without rebuilding (release --skip=publish then release --clean publishes a DIFFERENT build; `continue` is Pro-only), so the assert rides the build.
+- v0.2.1 disposition, RECORDED not acted: the public tag stays (never rewrite a public tag); the tap formula builds from the GitHub source tarball, so brew users never touch the +dirty binaries; whether to delete the v0.2.1 release's binary assets is an OWNER decision, by name (e.g. `gh release delete-asset v0.2.1 <asset>`), deliberately not taken here.
+- Pages touched: log.md.
+- Validation: make verify; goreleaser hook proved positive and negative in a fixture clone.

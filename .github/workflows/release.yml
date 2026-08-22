@@ -28,12 +28,27 @@ jobs:
       - name: Confirm Go toolchain
         run: go version
 
-      # The tree must be clean BEFORE goreleaser runs: the published v0.2.0
-      # assets carried vcs.modified=true (built outside this workflow from a
-      # dirty tree) and could not be reproduced from the tag.
-      - name: Refuse a dirty tree
-        run: git diff-index --quiet HEAD -- || { echo "dirty tree — release must be reproducible from its tag"; exit 1; }
+      # The tree must be clean BEFORE goreleaser runs — measured with the
+      # same definition Go's build stamper uses (`git status --porcelain`:
+      # tracked changes AND untracked files both stamp vcs.modified=true).
+      # The old diff-index check passed seconds before the v0.2.1 binaries
+      # stamped +dirty: goreleaser's own unignored dist/ output was the
+      # untracked file that dirtied every release build by construction
+      # (fixed by gitignoring dist/; this guard catches the next such case).
+      - name: Refuse an unclean tree
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "unclean tree — Go stamps vcs.modified=true for tracked or untracked changes; release must be reproducible from its tag"
+            git status --porcelain
+            exit 1
+          fi
 
+      # Provenance teeth now live INSIDE the release as a per-build post
+      # hook (.goreleaser.yaml): every binary is asserted vcs.modified=false
+      # at build time, BEFORE archiving and publication — the run 32584410033
+      # failure fired only after GoReleaser had already published, which is
+      # the wrong side of the gate (same doctrine as the image pipelines:
+      # scan before registry login).
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:
@@ -42,19 +57,3 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # Provenance teeth: every built binary must stamp vcs.modified=false —
-      # this is the check that would have caught the v0.2.0 +dirty assets.
-      - name: Assert clean build provenance
-        run: |
-          set -e
-          found=0
-          for bin in dist/*/scrinium; do
-            found=1
-            go version -m "$bin" | grep -q 'vcs.modified=false' || {
-              echo "FAIL: $bin was built from a modified tree:"
-              go version -m "$bin" | grep vcs || true
-              exit 1
-            }
-          done
-          [ "$found" = "1" ] || { echo "FAIL: no built binaries found under dist/"; exit 1; }

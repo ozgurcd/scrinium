@@ -1,5 +1,10 @@
 # Build artifacts
 /scrinium
+# GoReleaser output. MUST stay ignored: Go's build stamper counts UNTRACKED
+# files as tree modifications, so an unignored dist/ makes every goreleaser
+# build stamp vcs.modified=true (+dirty) BY CONSTRUCTION — v0.2.0's and
+# v0.2.1's published assets both shipped +dirty from exactly this.
+/dist/
 
 # Atomic write temp files
 .scrinium-*.tmp
