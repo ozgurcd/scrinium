@@ -372,3 +372,12 @@ Maintenance note: the deterministic registry rebuild is now considered an observ
 - Proofs on a throwaway clone: correct stamp → build green, binary prints the snapshot version; sabotaged ldflags (9.9.9-WRONG) → build FAILS pre-archive with 'STAMP FAIL — … prints "scrinium 9.9.9-WRONG", want "scrinium 0.4.0-SNAPSHOT-…"'.
 - Pages touched: log.md.
 - Validation: make verify; both throwaway proofs.
+
+## 2026-08-22 — CLI input bridge for claim_list (v0.4.1 defect)
+
+- Defect, found by USING the feature (the v0.4.1 closeout's queries): `claim_list --input-json` refused with "claim_list does not accept --input or --input-json". THE-CLAIM-QUERY extended the MCP layer, app layer, and schema but not cli.go's publicInputTarget allowlist — the gap existed because the feature was verified over MCP only; no CLI-level test exercised the flag path.
+- Allowlist audit across every documented input-taking operation: the docs list 10 input schemas; publicInputTarget mapped 9 — claim_list/claim-query was the ONLY missing one (claim_get, source_get/list, session ops take no input by design). Nothing else in the class; nothing deliberately left.
+- Fix: claim_list added to publicInputTarget (scrinium.claim-query/v1), with an optionalCLIInput distinction — every other input operation REQUIRES its document, claim_list without flags must keep listing everything. The CLI decodes with the same strict publicapi machinery; no CLI-side parsing added — identical semantics to MCP.
+- Tests, watched red against the shipped allowlist first: lifecycle and locator_prefix filters must return the DISCRIMINATING result through the CLI (not merely no-error); no-flags compatibility pins list-all in claim-ID order; an unknown value refuses with the MCP path's named message ("unknown lifecycle filter ...") as a machine-parseable error document. Pre-fix: both filter tests and the unknown-value test failed with the shipped refusal; no-flags passed.
+- Pages touched: log.md.
+- Validation: make verify.

@@ -565,6 +565,9 @@ func loadCLIInput(toolName, inputPath, inline string) (any, error) {
 		}
 		return nil, nil
 	}
+	if inputPath == "" && inline == "" && optionalCLIInput(toolName) {
+		return nil, nil
+	}
 	if (inputPath == "") == (inline == "") {
 		return nil, fmt.Errorf("%s requires exactly one of --input FILE or --input-json JSON", toolName)
 	}
@@ -584,8 +587,18 @@ func loadCLIInput(toolName, inputPath, inline string) (any, error) {
 	return target, nil
 }
 
+// optionalCLIInput names the operations whose input document is OPTIONAL:
+// claim_list without flags lists everything (the pre-filter behavior);
+// with a scrinium.claim-query/v1 document it filters. Every other
+// input-taking operation requires its document.
+func optionalCLIInput(toolName string) bool {
+	return toolName == "claim_list"
+}
+
 func publicInputTarget(toolName string) (string, publicapi.VersionedInput) {
 	switch toolName {
+	case "claim_list":
+		return publicapi.ClaimQuerySchema, &publicapi.ClaimQueryInput{}
 	case "claim_create":
 		return publicapi.ClaimCreateSchema, &publicapi.ClaimCreateInput{}
 	case "claim_update":
