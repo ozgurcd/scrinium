@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -81,11 +80,21 @@ func Open(ctx context.Context, configPath string, content Content) (*Service, er
 		return nil, fmt.Errorf("invalid write governance: %w", err)
 	}
 
-	standardFiles := make(map[string]string, len(content.StandardFiles))
+	standardFiles := make(map[string]string, len(content.StandardFiles)+1)
 	standardPages := make([]string, 0, len(content.StandardFiles))
 	for path, body := range content.StandardFiles {
 		standardFiles[path] = body
 		standardPages = append(standardPages, path)
+	}
+	// The compatibility guide is created by setup_llm_wiki like every other
+	// standard page — never as a side effect of opening the service. Open
+	// (and therefore every operation, including capabilities) must be
+	// read-only toward the wiki: the pilot that adopted Scrinium measured a
+	// bare `capabilities` call writing scrinium-guide.md into a governed
+	// wiki. Kept out of standardPages so the lint standard-page set is
+	// unchanged.
+	if content.Guide != "" {
+		standardFiles["scrinium-guide.md"] = content.Guide
 	}
 	validators := validation.NewRegistry()
 	manual := validation.NewManualValidator()
@@ -133,15 +142,6 @@ func Open(ctx context.Context, configPath string, content Content) (*Service, er
 	svc.claimLint = lint.NewClaimService(svc.claims, svc.sources, repository, validators, svc.snapshots)
 	svc.sourceLint = lint.NewSourceService(svc.sources, repository)
 
-	exists, existsErr := st.Exists(ctx, "scrinium-guide.md")
-	if existsErr != nil && ctx.Err() != nil {
-		return nil, ctx.Err()
-	}
-	if existsErr == nil && !exists {
-		if writeErr := st.Write(ctx, "scrinium-guide.md", []byte(content.Guide), 0644); writeErr != nil {
-			log.Printf("warning: failed to create scrinium-guide.md: %v", writeErr)
-		}
-	}
 	return svc, nil
 }
 

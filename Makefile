@@ -56,8 +56,18 @@ install: build
 clean:
 	rm -f $(BINARY_NAME)
 
-# Release target: verify, bump patch version, commit, tag, and push tags to trigger GoReleaser CI
+# Release target: verify, bump patch version, commit, tag, and push tags to trigger GoReleaser CI.
+# Refuses a dirty tree FIRST: the published v0.2.0 assets carried
+# vcs.modified=true ("v0.2.0+dirty" in `go version -m`) — built from a tree
+# with uncommitted tracked changes, so the binaries cannot be reproduced
+# from the tag. A clean-clone build of the same tag stamps
+# vcs.modified=false (measured 2026-08-22). Release CI asserts the same
+# invariant on the built artifacts (see .github/workflows/release.yml).
 release: verify
+	@git diff-index --quiet HEAD -- || { \
+		echo "release: REFUSED — working tree has uncommitted tracked changes; a release must be reproducible from its tag (v0.2.0 shipped +dirty)"; \
+		exit 1; \
+	}
 	bump2version patch
 	@NEW_VERSION=$$(grep "^VERSION =" Makefile | cut -d' ' -f3); \
 	git add Makefile .bumpversion.cfg; \

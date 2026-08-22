@@ -28,6 +28,12 @@ jobs:
       - name: Confirm Go toolchain
         run: go version
 
+      # The tree must be clean BEFORE goreleaser runs: the published v0.2.0
+      # assets carried vcs.modified=true (built outside this workflow from a
+      # dirty tree) and could not be reproduced from the tag.
+      - name: Refuse a dirty tree
+        run: git diff-index --quiet HEAD -- || { echo "dirty tree — release must be reproducible from its tag"; exit 1; }
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:
@@ -36,4 +42,19 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+
+      # Provenance teeth: every built binary must stamp vcs.modified=false —
+      # this is the check that would have caught the v0.2.0 +dirty assets.
+      - name: Assert clean build provenance
+        run: |
+          set -e
+          found=0
+          for bin in dist/*/scrinium; do
+            found=1
+            go version -m "$bin" | grep -q 'vcs.modified=false' || {
+              echo "FAIL: $bin was built from a modified tree:"
+              go version -m "$bin" | grep vcs || true
+              exit 1
+            }
+          done
+          [ "$found" = "1" ] || { echo "FAIL: no built binaries found under dist/"; exit 1; }

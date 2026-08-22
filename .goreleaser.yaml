@@ -24,13 +24,15 @@ checksum:
 release:
   replace_existing_artifacts: true
 
-homebrew_casks:
-  - repository:
-      owner: ozgurcd
-      name: homebrew-tap
-      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
-    directory: Casks
-    homepage: "https://github.com/ozgurcd/scrinium"
-    description: "Governed wiki MCP server for AI coding agents"
-    binaries:
-      - scrinium
+# Homebrew publication is deliberately ABSENT (2026-08-22). The tap
+# (ozgurcd/homebrew-tap) ships a hand-maintained SOURCE-BUILD formula on
+# rulefloor's mechanism: tag tarball + `go build` with the version ldflag.
+# GoReleaser can only generate artifact-download install methods (`brews`
+# formulae and `homebrew_casks` both pin release archives), so any
+# publication block here would overwrite that formula on the next release
+# — the previous `homebrew_casks` block did exactly that class of damage:
+# it published a cask whose quarantined, unnotarized binary Gatekeeper
+# SIGKILLed on install (measured: the identical binary runs with the
+# quarantine xattr removed and is killed with it present). Releasing a new
+# version means bumping url+sha256 in the tap's Formula/scrinium.rb by
+# hand, exactly like rulefloor.

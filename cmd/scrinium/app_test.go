@@ -218,16 +218,43 @@ func TestRunCLIPreservesMCPModeForConfigPath(t *testing.T) {
 	}
 }
 
-func TestNewAppBootstrappedGuideMentionsSetupTool(t *testing.T) {
+// TestNewAppWritesNothingIntoWiki is the regression test for the
+// side-effecting-discovery defect: opening the service (which every
+// operation does, including a bare `capabilities` call) used to bootstrap
+// scrinium-guide.md into the governed wiki. Discovery must be read-only —
+// after NewApp alone, the wiki root must contain no files at all.
+func TestNewAppWritesNothingIntoWiki(t *testing.T) {
 	app, cleanup := newTestApp(t, nil)
 	defer cleanup()
 
+	entries, err := os.ReadDir(app.wikiRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	if len(names) != 0 {
+		t.Fatalf("NewApp must not write into the wiki; found %v", names)
+	}
+}
+
+// The guide is a setup artifact now: setup_llm_wiki creates it, and it
+// still tells the reader about setup_llm_wiki itself.
+func TestSetupCreatedGuideMentionsSetupTool(t *testing.T) {
+	app, cleanup := newTestApp(t, nil)
+	defer cleanup()
+
+	if _, err := app.handleSetupLLMWiki(map[string]any{}); err != nil {
+		t.Fatalf("setup_llm_wiki should succeed: %v", err)
+	}
 	data, err := os.ReadFile(filepath.Join(app.wikiRoot, "scrinium-guide.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(data), "setup_llm_wiki") {
-		t.Fatalf("bootstrapped guide should mention setup_llm_wiki, got %q", string(data))
+		t.Fatalf("setup-created guide should mention setup_llm_wiki, got %q", string(data))
 	}
 }
 
@@ -250,8 +277,8 @@ func TestSetupLLMWikiCreatesCanonicalStructure(t *testing.T) {
 	app, cleanup := newTestApp(t, nil)
 	defer cleanup()
 
-	// NewApp bootstraps scrinium-guide.md; setup_llm_wiki should create the
-	// LLM Wiki operating structure without overwriting that existing file.
+	// setup_llm_wiki creates the LLM Wiki operating structure, including
+	// the compatibility guide (NewApp itself writes nothing).
 	result, err := app.handleSetupLLMWiki(map[string]any{})
 	if err != nil {
 		t.Fatalf("setup_llm_wiki should succeed: %v", err)
@@ -269,6 +296,7 @@ func TestSetupLLMWikiCreatesCanonicalStructure(t *testing.T) {
 		"agent-rules.md",
 		"prompt-templates.md",
 		"source-registry.md",
+		"scrinium-guide.md",
 		"workflows/ingest.md",
 		"workflows/query.md",
 		"workflows/lint.md",

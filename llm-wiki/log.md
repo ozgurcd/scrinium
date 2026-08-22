@@ -290,3 +290,10 @@ Maintenance note: the deterministic registry rebuild is now considered an observ
 - Outcome: Release candidate 0.2.0 is ready with generic claim/source/session APIs, optional Rulefloor and Gograph validators, deterministic local storage, CAS, and durable sessions.
 - Validation: Go 1.27.0 make verify passed; GoReleaser 2.17.1 configuration check passed; Gograph 1.5.8 precise build, review, and check completed with zero errors; public capabilities JSON smoke passed; git diff --check passed.
 - Follow-ups: Protected architecture and Go 1.27 governance drafts remain pending owner acceptance; local Rulefloor smoke remains unavailable until PATH resolves a JSON-contract-capable release.
+
+## 2026-08-22 — Release-hygiene fixes from the identuum wiki pilot
+
+- Objective: Fix three defects the identuum wiki pilot measured before any new release republishes a broken artifact.
+- Changes: (1) `.goreleaser.yaml` homebrew_casks publication REMOVED — the tap now carries a hand-maintained source-build formula (rulefloor mechanism); any GoReleaser homebrew block would overwrite it with an artifact-download install method, and the cask's quarantined unnotarized binary was SIGKILLed by Gatekeeper (measured: identical binary runs without the quarantine xattr, dies with it). (2) Release provenance teeth: the published v0.2.0 assets stamped vcs.modified=true (+dirty — irreproducible from the tag; a clean-clone build of the same tag stamps vcs.modified=false); `make release` now refuses a dirty tree and release CI asserts vcs.modified=false on every built binary. (3) Discovery is read-only: `app.Open` no longer bootstraps `scrinium-guide.md` (a bare `capabilities` call used to write into the governed wiki); the guide is now a `setup_llm_wiki` standard page. Regression tests: TestNewAppWritesNothingIntoWiki, TestSetupCreatedGuideMentionsSetupTool.
+- Pages touched: log.md; docs/v0.2-evidence-architecture.md and docs/v0.2-public-api.md updated to the read-only-discovery contract.
+- Validation: make verify.
