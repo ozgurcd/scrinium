@@ -6,7 +6,7 @@ Scrinium is a local, repository-owned evidence-backed knowledge system for codin
 
 ## Supported Toolchain
 
-Scrinium v0.2 requires Go 1.27 or newer. The supported verification and release baseline is the Go 1.27 toolchain declared in `go.mod`. CI uses Staticcheck 0.8.0, govulncheck 1.7.0, setup-go v7, and GoReleaser 2.17.1.
+Scrinium v0.2 requires Go 1.27 or newer. The supported verification and release baseline is the Go 1.27.2 toolchain declared in `go.mod`. CI uses Staticcheck 2026.2.1 (0.8.1), built from the checksum-checked source and PR 1834 patches used by Homebrew, govulncheck 1.7.0, setup-go v7, and GoReleaser 2.17.1.
 
 ## Implemented v0.2 core
 

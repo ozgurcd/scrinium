@@ -381,3 +381,8 @@ Maintenance note: the deterministic registry rebuild is now considered an observ
 - Tests, watched red against the shipped allowlist first: lifecycle and locator_prefix filters must return the DISCRIMINATING result through the CLI (not merely no-error); no-flags compatibility pins list-all in claim-ID order; an unknown value refuses with the MCP path's named message ("unknown lifecycle filter ...") as a machine-parseable error document. Pre-fix: both filter tests and the unknown-value test failed with the shipped refusal; no-flags passed.
 - Pages touched: log.md.
 - Validation: make verify.
+## [2026-10-09] maintenance | GO-1.27.2-TOOLS
+
+- Go 1.27.2 is the module and release compiler baseline. CI builds staticcheck 2026.2.1 from the OSS checksum-pinned source and PR 1834 patches.
+- Pages touched: projects/scrinium.md. Historical toolchain records remain unchanged.
+- Validation: make verify and main CI are required and reported at close. No release or installation in this goal.
