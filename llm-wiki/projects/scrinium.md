@@ -28,3 +28,7 @@ Rulefloor static and all Gograph validation are observation-grade. Supported aut
 ## Deferred
 
 Background validation scheduling, automatic stale-session cleanup, validation-history retention/compaction, and compatibility removal policy are deferred to v0.3.
+
+## Shared toolchain record (2026-10-09)
+
+TOOLCHAIN-1 (97228d5 and bcb2592) uses ozgurcd/lictor/.github/actions/go-toolchain@d35a8ad07dc59bd76153f0ed7d3b1ade22c6cf04 for CI and release setup. The caller go.mod selects Go; the action owns checksum-verified Staticcheck build inputs. Independent govulncheck and GoReleaser pins remain caller-owned.

@@ -36,3 +36,5 @@ Scrinium records evidence-backed project claims. Stored Markdown and JSON are in
 ## Log
 
 - `log.md` — append-only chronological wiki maintenance log.
+
+- [Repository record](repos/scrinium.md) — co-versioned toolchain ledger.

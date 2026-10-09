@@ -386,3 +386,11 @@ Maintenance note: the deterministic registry rebuild is now considered an observ
 - Go 1.27.2 is the module and release compiler baseline. CI builds staticcheck 2026.2.1 from the OSS checksum-pinned source and PR 1834 patches.
 - Pages touched: projects/scrinium.md. Historical toolchain records remain unchanged.
 - Validation: make verify and main CI are required and reported at close. No release or installation in this goal.
+
+## [2026-10-09] maintenance | TOOL-WIKI-1
+
+- Objective: close TOOLCHAIN-1 records for 97228d5 and bcb2592.
+- Pages touched: projects/scrinium.md, repos/scrinium.md, index.md.
+- Outcome: shared action d35a8ad07dc59bd76153f0ed7d3b1ade22c6cf04 and caller go.mod ownership recorded; product behaviour unchanged.
+- Validation: native gates and postcheck reported at close.
+- Follow-ups: none.
