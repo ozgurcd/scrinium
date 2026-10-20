@@ -394,3 +394,11 @@ Maintenance note: the deterministic registry rebuild is now considered an observ
 - Outcome: shared action d35a8ad07dc59bd76153f0ed7d3b1ade22c6cf04 and caller go.mod ownership recorded; product behaviour unchanged.
 - Validation: native gates and postcheck reported at close.
 - Follow-ups: none.
+
+## [2026-10-20] maintenance | CI-PIN-ALL-FINISH
+
+- Objective: pin every remaining action by SHA with an exact-version comment without changing workflow behaviour.
+- Pages touched: repos/scrinium.md, log.md.
+- Outcome: both lictor pins retain d35a8ad07dc59bd76153f0ed7d3b1ade22c6cf04 and name the v0.4.6-6-gd35a8ad untagged snapshot; goreleaser/goreleaser-action v7 is pinned to a4f02ab5355a589de60d917a659ce617ed19b3de (v7.3.0, verified online by the judge).
+- Validation: make verify. No Go source changes.
+- Follow-ups: none.
