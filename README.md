@@ -116,3 +116,7 @@ make verify
 ```
 
 The verification gate uses the Go version declared by the repository and runs build, tests, formatting/vet, static analysis, vulnerability checks, and Gograph checks.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
