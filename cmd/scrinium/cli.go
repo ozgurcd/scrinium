@@ -22,58 +22,79 @@ const (
 
 var version = "0.1.0"
 
+// cliSubcommands is the single list of named CLI commands; dispatch and the
+// usage text both read it.
+var cliSubcommands = map[string]bool{
+	"enforce-agents":              true,
+	"version":                     true,
+	"capabilities":                true,
+	"claim_create":                true,
+	"claim_get":                   true,
+	"claim_list":                  true,
+	"claim_update":                true,
+	"claim_add_evidence":          true,
+	"claim_set_validation_policy": true,
+	"claim_validate":              true,
+	"claim_supersede":             true,
+	"claim_withdraw":              true,
+	"claim_lint":                  true,
+	"source_register":             true,
+	"source_get":                  true,
+	"source_list":                 true,
+	"source_refresh":              true,
+	"source_migration_status":     true,
+	"session_begin":               true,
+	"session_continue":            true,
+	"session_finish":              true,
+	"session_abandon":             true,
+	"session_list":                true,
+	"setup_llm_wiki":              true,
+	"begin_session":               true,
+	"continue_session":            true,
+	"session_status":              true,
+	"finish_session":              true,
+	"abandon_session":             true,
+	"list_active_sessions":        true,
+	"lint_llm_wiki":               true,
+	"adopt_llm_wiki":              true,
+	"assess_source_migration":     true,
+	"apply_source_migration":      true,
+	"rebuild_source_registry":     true,
+	"register_source":             true,
+	"create_page":                 true,
+	"move_page":                   true,
+	"archive_page":                true,
+	"read_wiki_page":              true,
+	"update_wiki_page":            true,
+	"create_draft":                true,
+	"append_log":                  true,
+}
+
+func isHelpFlag(arg string) bool { return arg == "-h" || arg == "--help" }
+
 // IsCLISubcommand reports whether args select a normal CLI command instead of
 // MCP stdio server mode.
 func IsCLISubcommand(args []string) bool {
 	if len(args) == 0 {
 		return false
 	}
-	known := map[string]bool{
-		"enforce-agents":              true,
-		"version":                     true,
-		"capabilities":                true,
-		"claim_create":                true,
-		"claim_get":                   true,
-		"claim_list":                  true,
-		"claim_update":                true,
-		"claim_add_evidence":          true,
-		"claim_set_validation_policy": true,
-		"claim_validate":              true,
-		"claim_supersede":             true,
-		"claim_withdraw":              true,
-		"claim_lint":                  true,
-		"source_register":             true,
-		"source_get":                  true,
-		"source_list":                 true,
-		"source_refresh":              true,
-		"source_migration_status":     true,
-		"session_begin":               true,
-		"session_continue":            true,
-		"session_finish":              true,
-		"session_abandon":             true,
-		"session_list":                true,
-		"setup_llm_wiki":              true,
-		"begin_session":               true,
-		"continue_session":            true,
-		"session_status":              true,
-		"finish_session":              true,
-		"abandon_session":             true,
-		"list_active_sessions":        true,
-		"lint_llm_wiki":               true,
-		"adopt_llm_wiki":              true,
-		"assess_source_migration":     true,
-		"apply_source_migration":      true,
-		"rebuild_source_registry":     true,
-		"register_source":             true,
-		"create_page":                 true,
-		"move_page":                   true,
-		"archive_page":                true,
-		"read_wiki_page":              true,
-		"update_wiki_page":            true,
-		"create_draft":                true,
-		"append_log":                  true,
+	return cliSubcommands[args[0]] || isHelpFlag(args[0])
+}
+
+func printUsage(w io.Writer) {
+	names := make([]string, 0, len(cliSubcommands))
+	for name := range cliSubcommands {
+		names = append(names, name)
 	}
-	return known[args[0]]
+	sort.Strings(names)
+	fmt.Fprintln(w, "Usage: scrinium <scrinium.json> | <command> [flags] | -h | --help")
+	fmt.Fprintln(w, "\n  scrinium <scrinium.json>        start the MCP stdio server with this config")
+	fmt.Fprintln(w, "  scrinium <command> [flags]      run one command (use <command> --help for its flags)")
+	fmt.Fprintln(w, "  scrinium -h | --help            print this text")
+	fmt.Fprintln(w, "\nCommands:")
+	for _, name := range names {
+		fmt.Fprintf(w, "  %s\n", name)
+	}
 }
 
 // RunCLI executes Scrinium's non-MCP CLI commands.
@@ -84,6 +105,9 @@ func RunCLI(args []string, stdout, stderr io.Writer) int {
 	}
 
 	switch args[0] {
+	case "-h", "--help":
+		printUsage(stdout)
+		return 0
 	case "enforce-agents":
 		if err := runEnforceAgents(args[1:], stdout); err != nil {
 			if errors.Is(err, flag.ErrHelp) {
@@ -139,11 +163,81 @@ func requestedJSON(args []string) bool {
 	return false
 }
 
+// Enforcement targets selectable with --files or scrinium.json
+// enforcement.files; the default is every target.
+const (
+	targetAgents = "agents"
+	targetClaude = "claude"
+	targetDoc    = "doc"
+)
+
+var allEnforcementTargets = []string{targetAgents, targetClaude, targetDoc}
+
 type enforceAgentsOptions struct {
 	repo   string
 	agents []string
+	files  []string
 	dryRun bool
 	check  bool
+}
+
+func (o enforceAgentsOptions) wants(target string) bool {
+	for _, file := range o.files {
+		if file == target {
+			return true
+		}
+	}
+	return false
+}
+
+// parseEnforcementTargets validates a list of target names; an empty list is
+// an error so a typo can never silently select nothing.
+func parseEnforcementTargets(values []string) ([]string, error) {
+	seen := make(map[string]bool)
+	targets := make([]string, 0, len(allEnforcementTargets))
+	for _, raw := range values {
+		target := strings.ToLower(strings.TrimSpace(raw))
+		if target == "" {
+			continue
+		}
+		known := false
+		for _, candidate := range allEnforcementTargets {
+			known = known || candidate == target
+		}
+		if !known {
+			return nil, fmt.Errorf("unknown enforcement file %q (want %s)", raw, strings.Join(allEnforcementTargets, ", "))
+		}
+		if !seen[target] {
+			seen[target] = true
+			targets = append(targets, target)
+		}
+	}
+	if len(targets) == 0 {
+		return nil, fmt.Errorf("at least one enforcement file must be selected (%s)", strings.Join(allEnforcementTargets, ", "))
+	}
+	return targets, nil
+}
+
+// configuredEnforcementTargets reads enforcement.files from the repository's
+// scrinium.json. A missing file or an absent key selects every target; an
+// unreadable or malformed file is an error, never a silent fallback to the
+// default that would create files the repository forbids.
+func configuredEnforcementTargets(repo string) ([]string, error) {
+	data, err := os.ReadFile(filepath.Join(repo, "scrinium.json"))
+	if os.IsNotExist(err) {
+		return allEnforcementTargets, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read scrinium.json: %w", err)
+	}
+	var config Config
+	if err := json.Unmarshal(data, &config); err != nil {
+		return nil, fmt.Errorf("parse scrinium.json: %w", err)
+	}
+	if config.Enforcement == nil {
+		return allEnforcementTargets, nil
+	}
+	return parseEnforcementTargets(config.Enforcement.Files)
 }
 
 type enforcementFile struct {
@@ -155,14 +249,15 @@ func runEnforceAgents(args []string, stdout io.Writer) error {
 	fs := flag.NewFlagSet("enforce-agents", flag.ContinueOnError)
 	fs.SetOutput(stdout)
 	fs.Usage = func() {
-		fmt.Fprintln(stdout, "Usage: scrinium enforce-agents [--repo PATH] [--agents LIST] [--dry-run] [--check]")
+		fmt.Fprintln(stdout, "Usage: scrinium enforce-agents [--repo PATH] [--agents LIST] [--files LIST] [--dry-run] [--check]")
 		fs.PrintDefaults()
 	}
 
-	var agentsCSV string
+	var agentsCSV, filesCSV string
 	opts := enforceAgentsOptions{}
 	fs.StringVar(&opts.repo, "repo", ".", "repository root to update")
 	fs.StringVar(&agentsCSV, "agents", "codex,claudecode,opencode,antigravity", "comma-separated agent targets")
+	fs.StringVar(&filesCSV, "files", "", "comma-separated files to generate: agents (AGENTS.md), claude (CLAUDE.md), doc (docs/scrinium-agent-enforcement.md); default: scrinium.json enforcement.files, else all")
 	fs.BoolVar(&opts.dryRun, "dry-run", false, "print planned writes without changing files")
 	fs.BoolVar(&opts.check, "check", false, "exit non-zero if generated enforcement is stale or missing")
 	if err := fs.Parse(args); err != nil {
@@ -177,6 +272,20 @@ func runEnforceAgents(args []string, stdout io.Writer) error {
 		return err
 	}
 	opts.agents = agents
+
+	filesSet := false
+	fs.Visit(func(f *flag.Flag) { filesSet = filesSet || f.Name == "files" })
+	if filesSet {
+		opts.files, err = parseEnforcementTargets(strings.Split(filesCSV, ","))
+	} else {
+		var repo string
+		if repo, err = filepath.Abs(opts.repo); err == nil {
+			opts.files, err = configuredEnforcementTargets(repo)
+		}
+	}
+	if err != nil {
+		return err
+	}
 
 	files, err := buildEnforcementFiles(opts)
 	if err != nil {
@@ -232,19 +341,24 @@ func buildEnforcementFiles(opts enforceAgentsOptions) ([]enforcementFile, error)
 	configPath := filepath.Join(repo, "scrinium.json")
 	agentList := strings.Join(opts.agents, ", ")
 
-	files := []enforcementFile{
-		{
+	var files []enforcementFile
+	if opts.wants(targetAgents) {
+		files = append(files, enforcementFile{
 			path:    filepath.Join(repo, "AGENTS.md"),
-			content: agentInstructionsContent(agentList, configPath),
-		},
-		{
+			content: agentInstructionsContent(agentList, configPath, opts.wants(targetClaude)),
+		})
+	}
+	if opts.wants(targetClaude) {
+		files = append(files, enforcementFile{
 			path:    filepath.Join(repo, "CLAUDE.md"),
 			content: claudeInstructionsContent(agentList, configPath),
-		},
-		{
+		})
+	}
+	if opts.wants(targetDoc) {
+		files = append(files, enforcementFile{
 			path:    filepath.Join(repo, "docs", "scrinium-agent-enforcement.md"),
-			content: agentEnforcementDocContent(agentList, configPath),
-		},
+			content: agentEnforcementDocContent(agentList, configPath, opts.wants(targetClaude)),
+		})
 	}
 	return files, nil
 }
@@ -327,8 +441,14 @@ func defaultPreamble(base string) string {
 	}
 }
 
-func agentInstructionsContent(agentList, configPath string) string {
-	return sharedEnforcementBlock("Codex, OpenCode, Antigravity-compatible agents", agentList, configPath)
+// agentInstructionsContent addresses Claude Code too when no CLAUDE.md is
+// generated, so AGENTS.md is then the only enforcement carrier.
+func agentInstructionsContent(agentList, configPath string, hasClaudeFile bool) string {
+	audience := "Codex, OpenCode, Antigravity-compatible agents"
+	if !hasClaudeFile {
+		audience += ", and Claude Code"
+	}
+	return sharedEnforcementBlock(audience, agentList, configPath)
 }
 
 func claudeInstructionsContent(agentList, configPath string) string {
@@ -364,7 +484,11 @@ Scrinium sessions are durable tracked work-session checklists. They record only 
 `, audience, agentList, configPath)
 }
 
-func agentEnforcementDocContent(agentList, configPath string) string {
+func agentEnforcementDocContent(agentList, configPath string, hasClaudeFile bool) string {
+	claudeLine := ""
+	if hasClaudeFile {
+		claudeLine = "- `CLAUDE.md` carries the same enforcement block for Claude Code.\n"
+	}
 	return fmt.Sprintf(`# Scrinium Agent Enforcement
 
 Generated agent targets: %s.
@@ -393,10 +517,9 @@ Use the same Scrinium MCP server configuration for Codex, Claude Code, OpenCode,
 ## Instruction Files
 
 - `+"`AGENTS.md`"+` carries the shared enforcement block for Codex, OpenCode, Antigravity-compatible agents, and other tools that honor AGENTS-style repository instructions.
-- `+"`CLAUDE.md`"+` carries the same enforcement block for Claude Code.
-
+%s
 Tool-specific config file names can change. Prefer this shared instruction layer plus the MCP snippet unless a tool's current documentation defines a stable project-local config path.
-`, agentList, configPath)
+`, agentList, configPath, claudeLine)
 }
 
 func runMCPToolAsCLI(toolName string, args []string, stdout io.Writer) error {

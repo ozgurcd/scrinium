@@ -123,10 +123,25 @@ func (osCommandRunner) Run(ctx context.Context, executable string, args ...strin
 	}
 }
 
+// versionDocument is rulefloor.version.v1. Only schema_version and version are
+// required; toolchain_version, version_agreement and version_disagreement are
+// Rulefloor's stamp-versus-toolchain provenance and are optional so older
+// builds still work. Unknown fields stay rejected.
 type versionDocument struct {
-	SchemaVersion string `json:"schema_version"`
-	Version       string `json:"version"`
+	SchemaVersion       string `json:"schema_version"`
+	Version             string `json:"version"`
+	ToolchainVersion    string `json:"toolchain_version,omitempty"`
+	VersionAgreement    string `json:"version_agreement,omitempty"`
+	VersionDisagreement bool   `json:"version_disagreement,omitempty"`
 }
+
+// Values of version_agreement; "fail" is a proven disagreement between the
+// release stamp and the toolchain's embedded module version.
+const (
+	versionAgreementPass           = "pass"
+	versionAgreementFail           = "fail"
+	versionAgreementCannotEvaluate = "cannot_evaluate"
+)
 
 type validationDocument struct {
 	SchemaVersion    string             `json:"schema_version"`
@@ -381,6 +396,16 @@ func (v *Validator) discoverVersion(ctx context.Context) (string, error) {
 	}
 	if strings.TrimSpace(document.Version) == "" || len(document.Version) > 128 {
 		return "", fmt.Errorf("rulefloor version is structurally invalid")
+	}
+	switch document.VersionAgreement {
+	case "", versionAgreementPass, versionAgreementCannotEvaluate:
+	case versionAgreementFail:
+		return "", fmt.Errorf("rulefloor reports its version stamp disagrees with its toolchain version")
+	default:
+		return "", fmt.Errorf("rulefloor version_agreement %q is not recognised", document.VersionAgreement)
+	}
+	if document.VersionDisagreement {
+		return "", fmt.Errorf("rulefloor reports its version stamp disagrees with its toolchain version")
 	}
 	return document.Version, nil
 }

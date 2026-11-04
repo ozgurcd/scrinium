@@ -1,0 +1,8 @@
+# Release-notes fragment: scrinium fixes (SCRINIUM-FIXES-1104)
+
+Patch release; fold into the next version's release notes.
+
+- `scrinium -h` / `--help` print usage and the command list instead of failing with a config-load error (SCR-01).
+- `enforce-agents` gains `--files agents,claude,doc` and a `scrinium.json` `enforcement.files` setting. `["agents"]` writes only `AGENTS.md`; `CLAUDE.md` and `docs/scrinium-agent-enforcement.md` are never created or checked. The default (all three files) is unchanged. A bad selection or a malformed `scrinium.json` fails without writing (SCR-02).
+- The `setup_llm_wiki` skeleton's `index.md` now links `agent-rules.md`, `prompt-templates.md` and `scrinium-guide.md`, so `lint_llm_wiki` is clean. An existing `index.md` is never rewritten (SCR-03).
+- The Rulefloor adapter accepts `toolchain_version`, `version_agreement` and `version_disagreement` in `rulefloor.version.v1` (as emitted by Rulefloor v0.9.x) and refuses to validate only when Rulefloor reports a proven stamp/toolchain disagreement. Unknown fields stay rejected (SCR-04).

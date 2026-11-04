@@ -85,6 +85,12 @@ var defaultLLMWikiFiles = map[string]string{
 - ` + "`workflows/query.md`" + ` — How to answer questions from the wiki and file durable answers.
 - ` + "`workflows/lint.md`" + ` — How to health-check the wiki.
 
+## Agent Guidance
+
+- ` + "`agent-rules.md`" + ` — Rules every agent follows before and after changing the wiki.
+- ` + "`prompt-templates.md`" + ` — Reusable prompts for ingest, query, and lint work.
+- ` + "`scrinium-guide.md`" + ` — How to use Scrinium's tools and workflow.
+
 ## Schemas and Security
 
 - ` + "`schemas/page-schemas.md`" + ` — Page schemas for maintained wiki pages.

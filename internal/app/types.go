@@ -20,6 +20,17 @@ type Config struct {
 	// binding can never carry a filesystem path (see the validator
 	// Config doc comments below). Additive within the v1 config schema.
 	ValidationTargets map[string]string `json:"validation_targets,omitempty"`
+	// Enforcement selects what `scrinium enforce-agents` writes. Additive
+	// within the v1 config schema; absent means every enforcement file.
+	Enforcement *Enforcement `json:"enforcement,omitempty"`
+}
+
+// Enforcement configures the `enforce-agents` command.
+type Enforcement struct {
+	// Files lists the enforcement targets to generate: "agents" (AGENTS.md),
+	// "claude" (CLAUDE.md) and "doc" (docs/scrinium-agent-enforcement.md).
+	// A repository whose rules forbid CLAUDE.md sets ["agents"].
+	Files []string `json:"files"`
 }
 
 // WriteGovernance configures protected wiki paths.

@@ -64,6 +64,7 @@ Existing page/wiki tools and `enforce-agents` remain available as deprecated v0.
 
 ## External validators
 
+- The Rulefloor adapter reads `rulefloor version --json` (`rulefloor.version.v1`). It accepts the optional `toolchain_version`, `version_agreement` and `version_disagreement` fields and refuses to validate when Rulefloor reports its release stamp disagrees with its toolchain version (`version_agreement` `fail`). `scrinium --help` lists the commands.
 - A Rulefloor static pass means the selected rule's binding and test integrity matched the recorded ledger state. It is observation-grade.
 - A Rulefloor execute pass can be verification-grade only when the selected supported rule was actually executed under the recorded mode/profile and repository snapshot.
 - A Gograph result is observation-grade structural evidence for the selected predicate and recorded graph/build context. CHA edges are possible static targets, not runtime certainty. Unresolved dispatch returns `cannot_evaluate`; validation never rebuilds the graph.

@@ -169,6 +169,50 @@ func TestVersionDiscoveryRejectsUnavailableAndInvalidDocuments(t *testing.T) {
 	}
 }
 
+// SCR-04: rulefloor.version.v1 as emitted by Rulefloor v0.9.x also carries
+// toolchain_version, version_agreement and (omitted when false)
+// version_disagreement. The adapter must accept them and refuse only a proven
+// stamp/toolchain disagreement.
+func TestVersionDiscoveryAcceptsRulefloorV1ProvenanceFields(t *testing.T) {
+	root := t.TempDir()
+	const head = `{"schema_version":"rulefloor.version.v1","version":"v0.9.1"`
+	tests := []struct {
+		name    string
+		stdout  string
+		wantErr bool
+	}{
+		{name: "released build", stdout: head + `,"toolchain_version":"v0.9.1","version_agreement":"pass"}`},
+		{name: "devel build", stdout: `{"schema_version":"rulefloor.version.v1","version":"dev","toolchain_version":"(devel)","version_agreement":"pass"}`},
+		{name: "cannot evaluate", stdout: head + `,"toolchain_version":"(unknown)","version_agreement":"cannot_evaluate"}`},
+		{name: "legacy two fields", stdout: head + `}`},
+		{name: "proven disagreement", stdout: head + `,"toolchain_version":"v0.5.20","version_disagreement":true,"version_agreement":"fail"}`, wantErr: true},
+		{name: "disagreement boolean only", stdout: head + `,"version_disagreement":true}`, wantErr: true},
+		{name: "unknown agreement value", stdout: head + `,"toolchain_version":"v0.9.1","version_agreement":"maybe"}`, wantErr: true},
+		{name: "non-string toolchain", stdout: head + `,"toolchain_version":1,"version_agreement":"pass"}`, wantErr: true},
+		{name: "unknown extra field", stdout: head + `,"toolchain_version":"v0.9.1","version_agreement":"pass","extra":1}`, wantErr: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			runner := runnerFunc(func(context.Context, string, ...string) commandResult {
+				return commandResult{stdout: []byte(test.stdout)}
+			})
+			validator, err := newValidator(context.Background(), Config{Executable: "/test/rulefloor", RepositoryRoot: root}, runner)
+			if test.wantErr {
+				if err == nil {
+					t.Fatal("expected version discovery failure")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("version document must be accepted: %v", err)
+			}
+			if got := validator.Descriptor().Version; got == "" {
+				t.Fatal("descriptor version must come from the version field")
+			}
+		})
+	}
+}
+
 func TestBindingSchemaValidation(t *testing.T) {
 	fixture := newAdapterFixture(t, func(context.Context, []string) commandResult { return commandResult{} })
 	valid := validationRequest("static", "").Binding

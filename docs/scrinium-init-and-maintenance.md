@@ -35,7 +35,7 @@ Canonical source records describe provenance and bind repository-local raw sourc
 - `llm-wiki/security/untrusted-sources.md`
 - `llm-wiki/sources/README.md`
 
-Scrinium's `setup_llm_wiki` tool creates the standard skeleton for missing pages and leaves existing pages unchanged.
+Scrinium's `setup_llm_wiki` tool creates the standard skeleton for missing pages and leaves existing pages unchanged. The skeleton passes `lint_llm_wiki`: its `index.md` links every page it creates. An `index.md` that already exists is not rewritten, so add the `agent-rules.md`, `prompt-templates.md` and `scrinium-guide.md` entries to an older wiki by hand.
 
 ## Agent Enforcement Files
 
@@ -52,6 +52,20 @@ Scrinium-managed blocks in:
 - `AGENTS.md`
 - `CLAUDE.md`
 - `docs/scrinium-agent-enforcement.md`
+
+Choose which files are written with `--files agents,claude,doc` (`agents` =
+`AGENTS.md`, `claude` = `CLAUDE.md`, `doc` = `docs/scrinium-agent-enforcement.md`),
+or persist the choice in `scrinium.json`:
+
+```json
+{ "enforcement": { "files": ["agents"] } }
+```
+
+`--files` overrides the config; with neither, all three are written. A
+repository whose rules forbid `CLAUDE.md` sets `["agents"]`: `CLAUDE.md` is then
+never created or checked, and `AGENTS.md` addresses Claude Code as well. An
+unknown name, an empty list, or an unreadable `scrinium.json` is an error and
+nothing is written.
 
 Existing content outside the managed block is preserved. Use:
 
