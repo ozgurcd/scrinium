@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 
 	appsvc "scrinium/internal/app"
@@ -325,11 +327,29 @@ func (s *Server) archivePage(ctx context.Context, args map[string]any) (any, err
 	return TextResult(fmt.Sprintf("Archived %s to %s. Archived content is historical only: remove it from active working context, do not cite it for current requirements, re-read index.md and the replacement/current page if one exists, update index.md, and append log.md.", path, destination)), nil
 }
 
+// noParams refuses any argument. The message names the rejected parameters so
+// a caller can drop them; names are caller text, so at most five are quoted,
+// each cut to 64 bytes (P-20).
 func noParams(name string, args map[string]any) error {
-	if len(args) != 0 {
-		return fmt.Errorf("%s does not accept parameters", name)
+	if len(args) == 0 {
+		return nil
 	}
-	return nil
+	keys := make([]string, 0, len(args))
+	for key := range args {
+		if len(key) > 64 {
+			key = key[:64]
+		}
+		keys = append(keys, strconv.Quote(key))
+	}
+	sort.Strings(keys)
+	if len(keys) > 5 {
+		keys = append(keys[:5], fmt.Sprintf("and %d more", len(keys)-5))
+	}
+	hint := ""
+	if name == "session_begin" || name == "begin_session" {
+		hint = "; a session takes no title: keep the session_id it returns"
+	}
+	return fmt.Errorf("%s does not accept parameters; remove %s%s", name, strings.Join(keys, ", "), hint)
 }
 
 func stringParam(args map[string]any, key string) (string, error) {
