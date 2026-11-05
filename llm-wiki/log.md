@@ -402,3 +402,10 @@ Maintenance note: the deterministic registry rebuild is now considered an observ
 - Outcome: both lictor pins retain d35a8ad07dc59bd76153f0ed7d3b1ade22c6cf04 and name the v0.4.6-6-gd35a8ad untagged snapshot; goreleaser/goreleaser-action v7 is pinned to a4f02ab5355a589de60d917a659ce617ed19b3de (v7.3.0, verified online by the judge).
 - Validation: make verify. No Go source changes.
 - Follow-ups: none.
+
+## [2026-11-05] release | SCRINIUM-0.4.4
+
+- Objective: release P-20 (PR #1) and raise the Go baseline to 1.27.3 (GO-2026-6809 in Go 1.27.2's crypto/x509).
+- Pages touched: projects/scrinium.md, log.md. Release notes: docs/release-notes/v0.4.4.md; the shipped v0.4.3 fragment is renamed docs/release-notes/v0.4.3.md.
+- Validation: make verify.
+- Follow-ups: bump url and sha256 in the tap's Formula/scrinium.rb to the v0.4.4 tag tarball.
