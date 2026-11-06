@@ -111,6 +111,63 @@ func TestCLIProcessHelper(t *testing.T) {
 	os.Exit(RunCLI(os.Args[separator+1:], os.Stdout, os.Stderr))
 }
 
+// SCR-01: a compatibility command refuses --json before it changes any
+// state. It used to create the session or write the page, then fail.
+func TestUnsupportedJSONIsRefusedBeforeAnyChange(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	repository := t.TempDir()
+	wiki := filepath.Join(repository, "llm-wiki")
+	if err := os.MkdirAll(wiki, 0755); err != nil {
+		t.Fatal(err)
+	}
+	for name, content := range map[string]string{"index.md": "# Index\n", "agent-rules.md": "# Rules\n"} {
+		if err := os.WriteFile(filepath.Join(wiki, name), []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(repository, "scrinium.json"), []byte(`{"wiki_root":"llm-wiki"}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	sessions := func() int {
+		t.Helper()
+		var listed struct {
+			Sessions []json.RawMessage `json:"sessions"`
+		}
+		if err := json.Unmarshal([]byte(runCLISessionCommand(t, "session_list", "--repo", repository, "--json")), &listed); err != nil {
+			t.Fatal(err)
+		}
+		return len(listed.Sessions)
+	}
+	refused := func(args ...string) {
+		t.Helper()
+		var stdout, stderr bytes.Buffer
+		if code := RunCLI(args, &stdout, &stderr); code == 0 || !strings.Contains(stderr.String(), "--json is supported only by") {
+			t.Fatalf("RunCLI(%q) code=%d stderr=%s stdout=%s", args, code, stderr.String(), stdout.String())
+		}
+	}
+
+	refused("begin_session", "--repo", repository, "--json")
+	if count := sessions(); count != 0 {
+		t.Fatalf("a refused begin_session created %d session(s)", count)
+	}
+
+	var started map[string]any
+	if err := json.Unmarshal([]byte(runCLISessionCommand(t, "begin_session", "--repo", repository)), &started); err != nil {
+		t.Fatal(err)
+	}
+	sessionID, _ := started["session_id"].(string)
+	for _, path := range []string{"index.md", "agent-rules.md"} {
+		runCLISessionCommand(t, "read_wiki_page", "--repo", repository, "--session", sessionID, "--path", path)
+	}
+	refused("update_wiki_page", "--repo", repository, "--session", sessionID, "--path", "index.md", "--content", "# Changed\n", "--json")
+	if data, err := os.ReadFile(filepath.Join(wiki, "index.md")); err != nil || string(data) != "# Index\n" {
+		t.Fatalf("a refused update_wiki_page changed index.md: %q %v", data, err)
+	}
+	if count := sessions(); count != 1 {
+		t.Fatalf("expected only the plain session, got %d", count)
+	}
+}
+
 func runCLISessionCommand(t *testing.T, args ...string) string {
 	t.Helper()
 	var stdout, stderr bytes.Buffer

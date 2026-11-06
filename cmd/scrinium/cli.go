@@ -562,6 +562,11 @@ func runMCPToolAsCLI(toolName string, args []string, stdout io.Writer) error {
 	if fs.NArg() != 0 {
 		return fmt.Errorf("unexpected positional arguments: %s", strings.Join(fs.Args(), " "))
 	}
+	// Refuse an unsupported --json before the tool runs: refusing after the
+	// call reported failure for a change it had already made (SCR-01).
+	if machineJSON && !publicCLICommand(toolName) {
+		return fmt.Errorf("--json is supported only by the public claim, source, validation, lint, session, and capabilities operations")
+	}
 	if directCLIRequiresSession(toolName) && strings.TrimSpace(sessionID) == "" {
 		return fmt.Errorf("requires --session SESSION-ID")
 	}
@@ -645,9 +650,6 @@ func runMCPToolAsCLI(toolName string, args []string, stdout io.Writer) error {
 		return fmt.Errorf("%s", text)
 	}
 	if machineJSON {
-		if !publicCLICommand(toolName) {
-			return fmt.Errorf("--json is supported only by the public claim, source, validation, lint, session, and capabilities operations")
-		}
 		if err := publicapi.ValidateMachineDocument([]byte(text)); err != nil {
 			return err
 		}
