@@ -409,3 +409,10 @@ Maintenance note: the deterministic registry rebuild is now considered an observ
 - Pages touched: projects/scrinium.md, log.md. Release notes: docs/release-notes/v0.4.4.md; the shipped v0.4.3 fragment is renamed docs/release-notes/v0.4.3.md.
 - Validation: make verify.
 - Follow-ups: bump url and sha256 in the tap's Formula/scrinium.rb to the v0.4.4 tag tarball.
+
+## [2026-11-06] release | SCRINIUM-0.4.5
+
+- Objective: release SCR-01 (PR #3): a compatibility command refuses `--json` before it changes any state.
+- Pages touched: log.md. Release notes: docs/release-notes/v0.4.5.md.
+- Validation: make verify.
+- Follow-ups: bump url and sha256 in the tap's Formula/scrinium.rb to the v0.4.5 tag tarball.
