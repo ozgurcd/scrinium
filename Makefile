@@ -7,7 +7,7 @@ BINDIR ?= $(PREFIX)/bin
 INSTALL ?= install
 LDFLAGS = -X scrinium/cmd/scrinium.version=$(VERSION)
 # The one Rulefloor release the verify gate accepts, locally and in CI.
-RULEFLOOR_VERSION = v0.9.2
+RULEFLOOR_VERSION = v0.9.3
 
 # Build targets
 build:

@@ -32,8 +32,8 @@ jobs:
       # two values below; a bump made in only one place fails the gate.
       - name: Install Rulefloor (pinned release, checksum-verified)
         env:
-          RULEFLOOR_VERSION: v0.9.2
-          RULEFLOOR_SHA256: f40c762d7937442347548f4a45c2e99da964f00f6862dacc327e9c0161832de1
+          RULEFLOOR_VERSION: v0.9.3
+          RULEFLOOR_SHA256: ad853cbc6dcc9601aaa713f939b63206f68d4bb259f5d17c4631942fc079ea97
         run: |
           set -euo pipefail
           work=$(mktemp -d "$RUNNER_TEMP/rulefloor.XXXXXX")
