@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/token"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -126,9 +127,7 @@ func (l Lifecycle) validate(claimID string) error {
 }
 
 func (a Authorship) validate() error {
-	switch a.Kind {
-	case AuthorshipOwner, AuthorshipHuman, AuthorshipAgent, AuthorshipImport:
-	default:
+	if !slices.Contains(AuthorshipKinds(), a.Kind) {
 		return invalid("invalid_enum", "authorship.kind", "invalid authorship kind %q", a.Kind)
 	}
 	if strings.TrimSpace(a.Origin) == "" || a.RecordedAt.IsZero() {
