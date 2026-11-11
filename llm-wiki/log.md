@@ -436,3 +436,11 @@ Maintenance note: the deterministic registry rebuild is now considered an observ
 - Red proofs watched on the new gate: a mutated DeriveState fails `rulefloor check`; a PATH without rulefloor fails with "rulefloor is not on PATH"; a different pin fails with "is not the pinned" version.
 - Validation: make verify.
 - Follow-ups: the CI install step has not run on a runner yet; the first pull request run is its proof.
+
+## [2026-11-11] release | SCRINIUM-0.4.6
+
+- Objective: release SCRINIUM-AUTHORSHIP-TOOL: the claim authorship kind `tool`, `authorship_kinds` in `capabilities`, and `rulefloor check` in the verify gate.
+- Pages touched: repos/scrinium.md, log.md. Release notes: docs/release-notes/v0.4.6.md.
+- Compatibility: binaries up to v0.4.5 refuse a claim written with authorship `tool`; one such file makes their `claim_list` fail for the whole claims directory. Upgrade every reader before writing such claims.
+- Validation: make verify.
+- Follow-ups: bump url and sha256 in the tap's Formula/scrinium.rb to the v0.4.6 tag tarball.

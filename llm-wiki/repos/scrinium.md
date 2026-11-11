@@ -15,3 +15,4 @@ Current toolchain facts: [projects/scrinium.md](../projects/scrinium.md). This p
 | 2026-10-20 | co-versioned | CI-PIN-ALL-FINISH: document the exact untagged shared-action source version; pin goreleaser-action v7 to its v7.3.0 commit SHA. |
 | 2026-11-11 | co-versioned | SCRINIUM-AUTHORSHIP-TOOL: claim authorship kind `tool`; `capabilities` lists `authorship_kinds`; RULE-FLOOR.md with AUTHORSHIP-NEUTRAL-1. |
 | 2026-11-11 | co-versioned | SCRINIUM-AUTHORSHIP-TOOL: `make verify` runs `rulefloor check` with Rulefloor v0.9.2 pinned; CI installs it checksum-verified. |
+| 2026-11-11 | co-versioned | SCRINIUM-0.4.6: version 0.4.6; release notes docs/release-notes/v0.4.6.md. |
