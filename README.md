@@ -116,7 +116,7 @@ Scrinium does not perform semantic contradiction detection or stale-prose detect
 make verify
 ```
 
-The verification gate uses the Go version declared by the repository and runs build, tests, formatting/vet, static analysis, vulnerability checks, and Gograph checks.
+The verification gate uses the Go version declared by the repository and runs build, tests, formatting/vet, static analysis, vulnerability checks, and Gograph checks. It ends with `rulefloor check` over `RULE-FLOOR.md` and fails when `rulefloor` is missing or is not the release pinned as `RULEFLOOR_VERSION` in the Makefile.
 
 ## License
 

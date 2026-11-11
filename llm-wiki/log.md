@@ -426,3 +426,13 @@ Maintenance note: the deterministic registry rebuild is now considered an observ
 - Rulefloor: the repository had no RULE-FLOOR.md. The ledger was initialized with one armed rule, AUTHORSHIP-NEUTRAL-1 ("authorship never changes a claim's derived state"), bound to TestAuthorshipNeverChangesDerivedState with an observed mutation red proof.
 - Validation: make verify; rulefloor check.
 - Follow-ups: owner to confirm keeping RULE-FLOOR.md and the in-v1 enum addition.
+
+## [2026-11-11] maintenance | SCRINIUM-AUTHORSHIP-TOOL gate
+
+- Objective: check AUTHORSHIP-NEUTRAL-1 in the verify gate, locally and in CI, with one pinned Rulefloor release.
+- Owner decisions (2026-11-11): rebase the change onto origin/main; keep RULE-FLOOR.md and wire it into the gate; no schema bump, the in-v1 addition of authorship kind `tool` stands.
+- Pages touched: projects/scrinium.md, repos/scrinium.md, log.md. Repository files: Makefile, .github/workflows/ci.yml, README.md.
+- Outcome: `make verify` ends with `rulefloor-check`. It fails with one line when `rulefloor` is not on PATH or is not `RULEFLOOR_VERSION` (v0.9.2), then runs `rulefloor check`. No existing step changed or moved. CI installs the v0.9.2 linux/amd64 release archive before `make verify` and checks it against the release's published `checksums.txt` and a sha256 pinned in the workflow. The shared lictor go-toolchain action at d35a8ad does not provide Rulefloor. release.yml runs neither `make verify` nor `make release` and is unchanged.
+- Red proofs watched on the new gate: a mutated DeriveState fails `rulefloor check`; a PATH without rulefloor fails with "rulefloor is not on PATH"; a different pin fails with "is not the pinned" version.
+- Validation: make verify.
+- Follow-ups: the CI install step has not run on a runner yet; the first pull request run is its proof.

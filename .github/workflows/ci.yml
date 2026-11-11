@@ -24,5 +24,30 @@ jobs:
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
 
+      # `make verify` runs `rulefloor check` and refuses any Rulefloor other
+      # than the Makefile's RULEFLOOR_VERSION. The release archive is checked
+      # twice before use: against the release's published checksums.txt, and
+      # against the sha256 pinned here, so a replaced release asset cannot
+      # pass. A version bump edits RULEFLOOR_VERSION in the Makefile and the
+      # two values below; a bump made in only one place fails the gate.
+      - name: Install Rulefloor (pinned release, checksum-verified)
+        env:
+          RULEFLOOR_VERSION: v0.9.2
+          RULEFLOOR_SHA256: f40c762d7937442347548f4a45c2e99da964f00f6862dacc327e9c0161832de1
+        run: |
+          set -euo pipefail
+          work=$(mktemp -d "$RUNNER_TEMP/rulefloor.XXXXXX")
+          trap 'rm -rf "$work"' EXIT
+          archive="rulefloor_${RULEFLOOR_VERSION#v}_linux_amd64.tar.gz"
+          base="https://github.com/ozgurcd/rulefloor/releases/download/${RULEFLOOR_VERSION}"
+          curl -fsSL -o "$work/$archive" "$base/$archive"
+          curl -fsSL -o "$work/checksums.txt" "$base/checksums.txt"
+          (cd "$work" && grep -F "  $archive" checksums.txt | sha256sum -c -)
+          echo "${RULEFLOOR_SHA256}  $work/$archive" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/rulefloor-bin"
+          tar -xzf "$work/$archive" -C "$RUNNER_TEMP/rulefloor-bin" rulefloor
+          "$RUNNER_TEMP/rulefloor-bin/rulefloor" version --json
+          echo "$RUNNER_TEMP/rulefloor-bin" >> "$GITHUB_PATH"
+
       - name: Verify
         run: make verify
