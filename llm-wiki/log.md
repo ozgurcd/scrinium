@@ -444,3 +444,10 @@ Maintenance note: the deterministic registry rebuild is now considered an observ
 - Compatibility: binaries up to v0.4.5 refuse a claim written with authorship `tool`; one such file makes their `claim_list` fail for the whole claims directory. Upgrade every reader before writing such claims.
 - Validation: make verify.
 - Follow-ups: bump url and sha256 in the tap's Formula/scrinium.rb to the v0.4.6 tag tarball.
+
+## [2026-11-11] maintenance | SCRINIUM-RULEFLOOR-PIN-093
+- Objective: move the local and CI Rulefloor pin from v0.9.2 to v0.9.3.
+- Pages touched: projects/scrinium.md, repos/scrinium.md, log.md.
+- Outcome: Makefile and CI use v0.9.3. The Linux archive digest matches its bytes, published checksums, and the owner's expected value.
+- Validation: local `make verify` passed with Rulefloor v0.9.3. A temporary live adapter test accepted its version and static JSON for AUTHORSHIP-NEUTRAL-1. The adapter invokes version and validate, not capabilities. No decoder or Go source changed.
+- Follow-ups: CI must pass before main. Achta's Rulefloor pin remains a separate goal.
