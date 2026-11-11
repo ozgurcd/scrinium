@@ -1,11 +1,13 @@
 # Makefile for Scrinium MCP Server
 
 BINARY_NAME = scrinium
-VERSION = 0.4.5
+VERSION = 0.4.6
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
 INSTALL ?= install
 LDFLAGS = -X scrinium/cmd/scrinium.version=$(VERSION)
+# The one Rulefloor release the verify gate accepts, locally and in CI.
+RULEFLOOR_VERSION = v0.9.2
 
 # Build targets
 build:
@@ -18,7 +20,7 @@ test:
 	go test ./... -count=1 -timeout=120s
 
 # Verify: build + test + lint + format check
-verify: build test vet format-check staticcheck govulncheck tidy-check
+verify: build test vet format-check staticcheck govulncheck tidy-check rulefloor-check
 
 vet:
 	go vet ./...
@@ -46,6 +48,22 @@ govulncheck:
 # empty before and after).
 tidy-check:
 	go mod tidy -diff
+
+# rulefloor-check runs every armed rule in RULE-FLOOR.md with the pinned
+# Rulefloor release. A missing binary or another version fails the gate with
+# one line; the check is never skipped. CI installs the same version
+# (.github/workflows/ci.yml), so a pin changed in only one place fails there.
+rulefloor-check:
+	@command -v rulefloor >/dev/null 2>&1 || { \
+		echo "rulefloor-check: FAILED — rulefloor is not on PATH (required: rulefloor $(RULEFLOOR_VERSION))"; \
+		exit 1; \
+	}
+	@found=$$(rulefloor version --json); \
+	case "$$found" in \
+		*'"version":"$(RULEFLOOR_VERSION)"'*) ;; \
+		*) echo "rulefloor-check: FAILED — rulefloor on PATH is not the pinned $(RULEFLOOR_VERSION): $$found"; exit 1 ;; \
+	esac
+	rulefloor check
 
 # Install binary to /usr/local/bin
 install: build
@@ -115,4 +133,4 @@ release: check-bump verify
 	git tag v$$NEW_VERSION; \
 	git push origin main --tags
 
-.PHONY: build version test verify vet format-check staticcheck govulncheck tidy-check install clean release check-bump
+.PHONY: build version test verify vet format-check staticcheck govulncheck tidy-check rulefloor-check install clean release check-bump

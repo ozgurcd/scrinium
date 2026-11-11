@@ -15,7 +15,7 @@ Scrinium keeps independent dimensions visible:
 - freshness: `current`, `stale`, `unknown`;
 - validation outcome: `pass`, `fail`, `cannot_evaluate`.
 
-Assessment and freshness are derived. Callers cannot set them directly. An LLM summary is not evidence for its own correctness, manual validation is observation-grade, `cannot_evaluate` never counts as pass, and stale or missing evidence removes current verified presentation.
+Assessment and freshness are derived. Callers cannot set them directly. Claim authorship (`owner`, `human`, `agent`, `import`, or `tool` for deterministic software, with `origin` naming the author or program) is provenance only and never changes them. An LLM summary is not evidence for its own correctness, manual validation is observation-grade, `cannot_evaluate` never counts as pass, and stale or missing evidence removes current verified presentation.
 
 ## Repository storage
 
@@ -116,7 +116,7 @@ Scrinium does not perform semantic contradiction detection or stale-prose detect
 make verify
 ```
 
-The verification gate uses the Go version declared by the repository and runs build, tests, formatting/vet, static analysis, vulnerability checks, and Gograph checks.
+The verification gate uses the Go version declared by the repository and runs build, tests, formatting/vet, static analysis, vulnerability checks, and Gograph checks. It ends with `rulefloor check` over `RULE-FLOOR.md` and fails when `rulefloor` is missing or is not the release pinned as `RULEFLOOR_VERSION` in the Makefile.
 
 ## License
 

@@ -99,7 +99,16 @@ const (
 	AuthorshipHuman  AuthorshipKind = "human"
 	AuthorshipAgent  AuthorshipKind = "agent"
 	AuthorshipImport AuthorshipKind = "import"
+	// AuthorshipTool marks a claim created by deterministic software, with
+	// no model and no person writing it; Origin names the program. Like
+	// every kind it is provenance only and never affects derived state.
+	AuthorshipTool AuthorshipKind = "tool"
 )
+
+// AuthorshipKinds returns every accepted authorship kind in a stable order.
+func AuthorshipKinds() []AuthorshipKind {
+	return []AuthorshipKind{AuthorshipOwner, AuthorshipHuman, AuthorshipAgent, AuthorshipImport, AuthorshipTool}
+}
 
 // Claim is the canonical aggregate persisted as one JSON file.
 // Assessment and freshness are intentionally absent because they are derived.

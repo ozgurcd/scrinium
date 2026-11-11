@@ -3,6 +3,7 @@ package mcp
 import (
 	"encoding/json"
 
+	"scrinium/internal/knowledge"
 	"scrinium/internal/publicapi"
 )
 
@@ -161,6 +162,10 @@ func (s *Server) Capabilities() any {
 			"session_result": publicapi.SessionResultSchema, "session_list": publicapi.SessionListSchema,
 			"capabilities": publicapi.CapabilitiesSchema, "error": publicapi.ErrorSchema,
 		},
+		// Accepted claim authorship kinds, so a caller can tell whether this
+		// binary accepts a kind before writing a claim that older binaries
+		// would refuse. Authorship is provenance only.
+		"authorship_kinds": knowledge.AuthorshipKinds(),
 		"deterministic_guarantees": []string{
 			"strict canonical claim and source JSON", "exact-byte revisions and compare-and-swap",
 			"repository path confinement and regular-file enforcement", "derived claim state from recorded evidence and validation",

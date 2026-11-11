@@ -416,3 +416,31 @@ Maintenance note: the deterministic registry rebuild is now considered an observ
 - Pages touched: log.md. Release notes: docs/release-notes/v0.4.5.md.
 - Validation: make verify.
 - Follow-ups: bump url and sha256 in the tap's Formula/scrinium.rb to the v0.4.5 tag tarball.
+
+## [2026-11-11] maintenance | SCRINIUM-AUTHORSHIP-TOOL
+
+- Objective: give claims computed by deterministic software an honest authorship label. `agent` credits a model and `import` means the record came from somewhere else; neither fits a program that writes the claim itself.
+- Pages touched: log.md. Repository files: internal/knowledge (kind and validation), internal/mcp/metadata.go (capabilities), docs/v0.2-public-api.md, docs/v0.2-evidence-architecture.md, README.md, docs/release-notes/unreleased-scrinium-authorship-tool.md, RULE-FLOOR.md.
+- Outcome: authorship kind `tool` is accepted by canonical claim validation, `claim_create` over CLI and MCP, and `claim_lint`; `origin` names the program (for example `nuntius`). The existing rule already requires a non-empty `origin` for every kind, so no `tool`-only rule was added. Unknown kinds, including `Tool` and `tools`, are still refused by name. Authorship stays provenance only: it grants no assessment, never changes assessment, freshness, or lifecycle, and exempts nothing from session, governance, or revision checks. `capabilities` did not list authorship kinds before; it now reports them as `authorship_kinds` (additive within `scrinium.capabilities/v1`).
+- Decision: `tool` is added inside `scrinium.claim/v1` and `scrinium.claim-create/v1` without a schema bump, following the `symbol_reference` evidence-kind precedent of 2026-08-22. No written rule for enum additions existed; docs/v0.2-public-api.md "Compatibility" now states it. Measured consequence with the installed 0.4.5 binary: a `tool`-authored claim file makes `claim_get` return `malformed_canonical_record`, makes `claim_list` fail for the whole claims directory, and is reported by `claim_lint` as `malformed_claim_file`. Callers must check `authorship_kinds` before writing such claims.
+- Rulefloor: the repository had no RULE-FLOOR.md. The ledger was initialized with one armed rule, AUTHORSHIP-NEUTRAL-1 ("authorship never changes a claim's derived state"), bound to TestAuthorshipNeverChangesDerivedState with an observed mutation red proof.
+- Validation: make verify; rulefloor check.
+- Follow-ups: owner to confirm keeping RULE-FLOOR.md and the in-v1 enum addition.
+
+## [2026-11-11] maintenance | SCRINIUM-AUTHORSHIP-TOOL gate
+
+- Objective: check AUTHORSHIP-NEUTRAL-1 in the verify gate, locally and in CI, with one pinned Rulefloor release.
+- Owner decisions (2026-11-11): rebase the change onto origin/main; keep RULE-FLOOR.md and wire it into the gate; no schema bump, the in-v1 addition of authorship kind `tool` stands.
+- Pages touched: projects/scrinium.md, repos/scrinium.md, log.md. Repository files: Makefile, .github/workflows/ci.yml, README.md.
+- Outcome: `make verify` ends with `rulefloor-check`. It fails with one line when `rulefloor` is not on PATH or is not `RULEFLOOR_VERSION` (v0.9.2), then runs `rulefloor check`. No existing step changed or moved. CI installs the v0.9.2 linux/amd64 release archive before `make verify` and checks it against the release's published `checksums.txt` and a sha256 pinned in the workflow. The shared lictor go-toolchain action at d35a8ad does not provide Rulefloor. release.yml runs neither `make verify` nor `make release` and is unchanged.
+- Red proofs watched on the new gate: a mutated DeriveState fails `rulefloor check`; a PATH without rulefloor fails with "rulefloor is not on PATH"; a different pin fails with "is not the pinned" version.
+- Validation: make verify.
+- Follow-ups: the CI install step has not run on a runner yet; the first pull request run is its proof.
+
+## [2026-11-11] release | SCRINIUM-0.4.6
+
+- Objective: release SCRINIUM-AUTHORSHIP-TOOL: the claim authorship kind `tool`, `authorship_kinds` in `capabilities`, and `rulefloor check` in the verify gate.
+- Pages touched: repos/scrinium.md, log.md. Release notes: docs/release-notes/v0.4.6.md.
+- Compatibility: binaries up to v0.4.5 refuse a claim written with authorship `tool`; one such file makes their `claim_list` fail for the whole claims directory. Upgrade every reader before writing such claims.
+- Validation: make verify.
+- Follow-ups: bump url and sha256 in the tap's Formula/scrinium.rb to the v0.4.6 tag tarball.
