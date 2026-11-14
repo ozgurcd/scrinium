@@ -19,8 +19,9 @@ version:
 test:
 	go test ./... -count=1 -timeout=120s
 
-# Verify: build + test + lint + format check
-verify: build test vet format-check staticcheck govulncheck tidy-check rulefloor-check
+# Verify: test + lint + format check. test and vet compile every package;
+# release and install build the binary themselves, so verify does not.
+verify: test vet format-check staticcheck govulncheck tidy-check rulefloor-check
 
 vet:
 	go vet ./...
@@ -115,11 +116,11 @@ release: check-bump verify
 		exit 1; \
 	fi
 	bump2version $(BUMP)
-	@# Rebuild AFTER the bump so ./$(BINARY_NAME) and the Makefile agree:
-	@# verify's build runs PRE-bump by design (a failing verify after the
-	@# bump would leave a dirty tree the porcelain guard then refuses), so
-	@# its scratch binary carries the PREVIOUS version — the v0.4.0 cut
-	@# printed a 0.3.1 ldflags line for exactly this reason. The local
+	@# Build AFTER the bump so ./$(BINARY_NAME) and the Makefile agree:
+	@# verify runs PRE-bump by design (a failing verify after the bump
+	@# would leave a dirty tree the porcelain guard then refuses); when
+	@# verify still built the binary, the v0.4.0 cut printed a 0.3.1
+	@# ldflags line from that PREVIOUS-version scratch binary. The local
 	@# stamp is asserted here; the PUBLISHED stamp is asserted by the
 	@# goreleaser per-build post hook.
 	@NEW_VERSION=$$(grep "^VERSION =" Makefile | cut -d' ' -f3); \
