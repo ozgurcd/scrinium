@@ -451,3 +451,10 @@ Maintenance note: the deterministic registry rebuild is now considered an observ
 - Outcome: Makefile and CI use v0.9.3. The Linux archive digest matches its bytes, published checksums, and the owner's expected value.
 - Validation: local `make verify` passed with Rulefloor v0.9.3. A temporary live adapter test accepted its version and static JSON for AUTHORSHIP-NEUTRAL-1. The adapter invokes version and validate, not capabilities. No decoder or Go source changed.
 - Follow-ups: CI must pass before main. Achta's Rulefloor pin remains a separate goal.
+
+## [2026-11-14] maintenance | SCRINIUM-CI-DEDUP
+
+- Objective: owner request that CI runs each check once per change.
+- Pages touched: repos/scrinium.md, log.md. Repository files: .github/workflows/ci.yml, .github/workflows/release.yml, Makefile, README.md.
+- Outcome: ci.yml and release.yml no longer run a separate `go version` step; the shared go-toolchain action already prints it. `make verify` no longer runs `build`: tests and vet compile every package, and `make release` and `make install` build the binary themselves. CI keeps both `pull_request` and `push` to main, because `make release` pushes its release commit to main directly and the push run is that commit's only CI.
+- Validation: `make test vet format-check staticcheck tidy-check` passed with Go 1.27.3. `govulncheck` (vuln.go.dev unreachable) and `rulefloor-check` (Rulefloor not installed) were not run here. The Scrinium MCP session loop was not run: the configured server path does not exist on this machine.

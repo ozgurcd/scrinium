@@ -17,3 +17,4 @@ Current toolchain facts: [projects/scrinium.md](../projects/scrinium.md). This p
 | 2026-11-11 | co-versioned | SCRINIUM-AUTHORSHIP-TOOL: `make verify` runs `rulefloor check` with Rulefloor v0.9.2 pinned; CI installs it checksum-verified. |
 | 2026-11-11 | co-versioned | SCRINIUM-0.4.6: version 0.4.6; release notes docs/release-notes/v0.4.6.md. |
 | 2026-11-11 | co-versioned | SCRINIUM-RULEFLOOR-PIN-093: pin the local gate and checksum-verified CI install to Rulefloor v0.9.3. Live adapter accepts its version and static validation JSON. |
+| 2026-11-14 | co-versioned | SCRINIUM-CI-DEDUP: no separate `go version` CI steps; `make verify` without `build`; CI keeps push to main for `make release` commits. |
